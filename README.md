@@ -19,6 +19,18 @@ pip install -e ".[dev]"
 ./run_demo.sh
 ```
 
+## Startup procedures
+Use the full launch runbook:
+- `docs/STARTUP_PROCEDURES.md`
+- `docs/TESTING_GUIDE.md`
+
+Pre-advertising checklist:
+1. `pytest -q`
+2. `./run_demo.sh`
+3. `PYTHONPATH=src python -m cognitiveio.cli proof-report`
+4. `PYTHONPATH=src python -m cognitiveio.cli health-card`
+5. `PYTHONPATH=src python -m cognitiveio.cli run --mode mac` and verify `CIO/CIO-P/CIO-II`
+
 ## uv environment setup (recommended)
 `uv` can manage one local environment that includes this app, PyObjC runtime support, and optional Apple FM support.
 
@@ -107,3 +119,6 @@ export COGNITIVEIO_HOME=/path/to/local/dir
 - `docs/ADVERSARIAL_TEST_MATRIX.md`
 - `docs/BUILD_PLAN_SHOWPIECE.md`
 - `docs/DEMO_SCRIPT.md`
+- `docs/STARTUP_PROCEDURES.md`
+- `docs/TESTING_GUIDE.md`
+- `docs/BLOG_CIO_II_LAUNCH.md`
