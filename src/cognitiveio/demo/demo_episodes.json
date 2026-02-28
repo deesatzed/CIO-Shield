@@ -1,0 +1,98 @@
+{
+  "episodes": [
+    {
+      "name": "Protected Mode in password field",
+      "context": {
+        "app_name": "1Password"
+      },
+      "flags": {
+        "password_field": true,
+        "blacklisted_app": true
+      },
+      "token": "teh",
+      "boundary": " ",
+      "idle_ms": 420,
+      "candidates": [
+        {
+          "id": "c1",
+          "before": "teh",
+          "after": "the",
+          "count": 12,
+          "confidence": 1.0
+        }
+      ],
+      "expected_action": "do_nothing"
+    },
+    {
+      "name": "Suggest-only in email then accept",
+      "context": {
+        "app_name": "Mail"
+      },
+      "flags": {
+        "password_field": false,
+        "blacklisted_app": false
+      },
+      "token": "teh",
+      "boundary": " ",
+      "idle_ms": 420,
+      "candidates": [
+        {
+          "id": "c1",
+          "before": "teh",
+          "after": "the",
+          "count": 12,
+          "confidence": 0.99
+        }
+      ],
+      "post_action": "accept",
+      "expected_action": "accept"
+    },
+    {
+      "name": "No interference in code identifiers",
+      "context": {
+        "app_name": "Visual Studio Code"
+      },
+      "flags": {
+        "password_field": false,
+        "blacklisted_app": false
+      },
+      "token": "recieve",
+      "boundary": " ",
+      "idle_ms": 420,
+      "candidates": [
+        {
+          "id": "c2",
+          "before": "recieve",
+          "after": "receive",
+          "count": 7,
+          "confidence": 0.9
+        }
+      ],
+      "expected_action": "do_nothing"
+    },
+    {
+      "name": "Undo last applied change",
+      "context": {
+        "app_name": "Mail"
+      },
+      "flags": {
+        "password_field": false,
+        "blacklisted_app": false
+      },
+      "token": "wierd",
+      "boundary": " ",
+      "idle_ms": 420,
+      "candidates": [
+        {
+          "id": "c3",
+          "before": "wierd",
+          "after": "weird",
+          "count": 5,
+          "confidence": 0.97
+        }
+      ],
+      "post_action": "accept_then_undo",
+      "expected_action": "undo"
+    }
+  ]
+}
