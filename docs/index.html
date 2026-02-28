@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CIO-II | Intent-Preserving Typing Assistance for macOS</title>
+    <meta
+      name="description"
+      content="CIO-II is a local-first macOS typing copilot: suggest-only by default, hard privacy blocks, perfect undo, and optional constrained Apple FM arbitration."
+    />
+    <style>
+      :root {
+        --bg: #0d1416;
+        --bg-soft: #121e22;
+        --text: #e7f0ee;
+        --muted: #9ab3ae;
+        --accent: #54d4b4;
+        --accent-2: #ffb86b;
+        --card: rgba(21, 34, 39, 0.8);
+        --line: rgba(132, 176, 165, 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "SF Pro Display", "Segoe UI", "Helvetica Neue", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(1200px 500px at 12% -10%, #1e5e56 0%, transparent 55%),
+          radial-gradient(900px 420px at 95% 0%, #7a4f22 0%, transparent 48%),
+          linear-gradient(180deg, #0b1215, #0e171a 60%, #0b1215);
+        line-height: 1.5;
+      }
+
+      .wrap {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 28px 18px 72px;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 6px 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(84, 212, 180, 0.1);
+        color: #c8efe3;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        font-size: clamp(34px, 6vw, 72px);
+        letter-spacing: -0.03em;
+        margin: 14px 0 6px;
+        line-height: 0.95;
+      }
+
+      h2 {
+        font-size: clamp(20px, 3vw, 30px);
+        margin: 0 0 10px;
+        letter-spacing: -0.01em;
+      }
+
+      p {
+        margin: 0 0 12px;
+      }
+
+      .lead {
+        color: #d2e5e0;
+        max-width: 780px;
+        font-size: clamp(16px, 2.3vw, 21px);
+      }
+
+      .meta {
+        color: var(--muted);
+        margin-top: 6px;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .btn {
+        display: inline-block;
+        text-decoration: none;
+        padding: 11px 16px;
+        border-radius: 11px;
+        border: 1px solid var(--line);
+        color: var(--text);
+        background: rgba(8, 14, 17, 0.5);
+        transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+        border-color: rgba(84, 212, 180, 0.55);
+      }
+
+      .btn.primary {
+        background: linear-gradient(135deg, #2f8f7a, #3db19a);
+        border: none;
+        color: #081513;
+        font-weight: 700;
+      }
+
+      .grid {
+        margin-top: 30px;
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 14px;
+      }
+
+      .card {
+        grid-column: span 12;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        backdrop-filter: blur(3px);
+        animation: rise 440ms ease both;
+      }
+
+      .card:nth-child(2) {
+        animation-delay: 60ms;
+      }
+      .card:nth-child(3) {
+        animation-delay: 120ms;
+      }
+      .card:nth-child(4) {
+        animation-delay: 180ms;
+      }
+
+      .card ul {
+        margin: 0;
+        padding-left: 20px;
+        color: #d1e6e0;
+      }
+
+      .card li {
+        margin-bottom: 6px;
+      }
+
+      pre {
+        margin: 10px 0 0;
+        padding: 12px;
+        border-radius: 10px;
+        background: rgba(6, 9, 11, 0.72);
+        border: 1px solid rgba(104, 145, 134, 0.34);
+        color: #c2e4dc;
+        overflow-x: auto;
+      }
+
+      code {
+        font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+        font-size: 13px;
+      }
+
+      .subtle {
+        color: var(--muted);
+      }
+
+      footer {
+        margin-top: 30px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      a {
+        color: #9debd4;
+      }
+
+      @media (min-width: 860px) {
+        .card.span-6 {
+          grid-column: span 6;
+        }
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <span class="pill">Open Source • macOS • Local-First</span>
+      <h1>CIO-II</h1>
+      <p class="lead">
+        Intent-preserving typing assistance for macOS. Suggest-only by default, hard privacy
+        blocks, perfect undo, and optional constrained Apple FM arbitration.
+      </p>
+      <p class="meta">Built for trust, reversibility, and auditable data minimization.</p>
+
+      <div class="hero-actions">
+        <a class="btn primary" href="https://github.com/deesatzed/CIO-II">GitHub Repository</a>
+        <a class="btn" href="./STARTUP_PROCEDURES.md">Startup Procedures</a>
+        <a class="btn" href="./TESTING_GUIDE.md">Testing Guide</a>
+        <a class="btn" href="./BLOG_CIO_II_LAUNCH.md">Launch Blog Draft</a>
+      </div>
+
+      <section class="grid">
+        <article class="card span-6">
+          <h2>Why It Is Not Autocorrect</h2>
+          <ul>
+            <li>Default mode is suggest-only, not silent rewrite.</li>
+            <li>Unknown/code/terminal profiles fail safe to do nothing.</li>
+            <li>Optional FM path can only pick known candidate IDs or do nothing.</li>
+            <li>Every applied change is reversible via undo records and hotkey.</li>
+          </ul>
+        </article>
+
+        <article class="card span-6">
+          <h2>Privacy + Security Posture</h2>
+          <ul>
+            <li>Protected Mode hard-blocks sensitive fields and excluded apps.</li>
+            <li>Panic hotkey pauses capture and interventions instantly.</li>
+            <li>Ledger stores minimized events; no raw keystroke stream.</li>
+            <li>Core runtime path is local-only with no outbound network dependency.</li>
+          </ul>
+        </article>
+
+        <article class="card span-6">
+          <h2>Quick Start</h2>
+          <pre><code>git clone https://github.com/deesatzed/CIO-II.git
+cd CIO-II
+uv venv .venv
+source .venv/bin/activate
+uv pip install -e ".[dev,mac]"
+./run_demo.sh</code></pre>
+        </article>
+
+        <article class="card span-6">
+          <h2>Test Before You Announce</h2>
+          <pre><code>pytest -q
+./run_demo.sh
+PYTHONPATH=src python -m cognitiveio.cli proof-report
+PYTHONPATH=src python -m cognitiveio.cli health-card
+PYTHONPATH=src python -m cognitiveio.cli run --mode mac</code></pre>
+          <p class="subtle">
+            In native mode, verify menu bar status transitions: <code>CIO</code> →
+            <code>CIO-P</code> / <code>CIO-II</code>.
+          </p>
+        </article>
+      </section>
+
+      <footer>
+        CIO-II is a local-first, UX-first, reversible typing assistant for macOS.
+      </footer>
+    </main>
+  </body>
+</html>

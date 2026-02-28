@@ -24,6 +24,9 @@ Use the full launch runbook:
 - `docs/STARTUP_PROCEDURES.md`
 - `docs/TESTING_GUIDE.md`
 
+Launch page:
+- `docs/index.html` (GitHub Pages ready)
+
 Pre-advertising checklist:
 1. `pytest -q`
 2. `./run_demo.sh`
@@ -122,3 +125,12 @@ export COGNITIVEIO_HOME=/path/to/local/dir
 - `docs/STARTUP_PROCEDURES.md`
 - `docs/TESTING_GUIDE.md`
 - `docs/BLOG_CIO_II_LAUNCH.md`
+- `docs/index.html`
+
+## GitHub Pages
+To publish the launch page:
+1. Open GitHub repo settings for `deesatzed/CIO-II`
+2. Go to `Pages`
+3. Source: `Deploy from a branch`
+4. Branch: `main` and folder: `/docs`
+5. Save and wait for the site URL
