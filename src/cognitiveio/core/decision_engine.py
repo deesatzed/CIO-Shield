@@ -57,6 +57,20 @@ def _top_candidate(cands: List[Candidate]) -> Optional[Candidate]:
     return sorted(cands, key=lambda c: (c.confidence, c.count), reverse=True)[0]
 
 
+def _has_candidate_conflict(cands: List[Candidate], settings: Settings) -> bool:
+    if len(cands) < 2:
+        return False
+    ordered = sorted(cands, key=lambda c: (c.confidence, c.count), reverse=True)
+    top = ordered[0]
+    second = ordered[1]
+    if top.after.strip().lower() == second.after.strip().lower():
+        return False
+    if top.confidence < settings.candidate_conflict_min_confidence:
+        return False
+    gap = top.confidence - second.confidence
+    return gap <= settings.candidate_conflict_max_gap
+
+
 async def decide(
     ctx: AppContext,
     flags: RiskFlags,
@@ -76,9 +90,11 @@ async def decide(
         return Decision("do_nothing", None, None, 0.0, f"blocked:{risk.reason}")
 
     if profile in (PROFILE_CODE, PROFILE_TERMINAL):
+        metrics.inc("blocked", 1)
         return Decision("do_nothing", None, None, 0.0, f"profile_block:{profile}")
 
     if profile == PROFILE_UNKNOWN and settings.fail_safe_unknown_profile:
+        metrics.inc("blocked", 1)
         return Decision("do_nothing", None, None, 0.0, "unknown_profile")
 
     if budget.typing_fast:
@@ -97,28 +113,21 @@ async def decide(
     if not top:
         return Decision("do_nothing", None, None, 0.0, "no_candidates")
 
+    has_conflict = _has_candidate_conflict(candidates, settings)
+    fm_variant_b = settings.apple_fm_variant.upper() == "B"
+    fm_available = settings.apple_fm_enabled and fm_variant_b and decide_with_apple_fm is not None and FMCandidate is not None
+
+    if has_conflict and not fm_available:
+        metrics.inc("blocked", 1)
+        return Decision("do_nothing", None, None, top.confidence, "candidate_conflict")
+
+    # Optional Apple FM arbiter in confidence gray-zone or candidate-conflict branch.
     if (
-        tier == "auto"
-        and settings.auto_apply_enabled
-        and not settings.suggest_only
-        and top.confidence >= settings.auto_apply_min_confidence
-    ):
-        metrics.inc("auto_applied", 1)
-        return Decision("auto_apply", top.after, top.id, top.confidence, "soft_auto")
-
-    if top.confidence >= settings.suggestion_min_confidence:
-        metrics.inc("suggestion_shown", 1)
-        return Decision("suggest", top.after, top.id, top.confidence, "high_confidence")
-
-    if settings.apple_fm_enabled and settings.apple_fm_variant.upper() != "B":
-        return Decision("do_nothing", None, None, top.confidence, "fm_variant_gate")
-
-    # Optional Apple FM arbiter in confidence gray-zone only.
-    if (
-        settings.apple_fm_enabled
-        and decide_with_apple_fm is not None
-        and settings.apple_fm_gray_zone_low <= top.confidence <= settings.apple_fm_gray_zone_high
-        and FMCandidate is not None
+        fm_available
+        and (
+            has_conflict
+            or settings.apple_fm_gray_zone_low <= top.confidence <= settings.apple_fm_gray_zone_high
+        )
     ):
         pkt = {
             "profile": profile,
@@ -150,5 +159,21 @@ async def decide(
             metrics.inc("auto_applied", 1)
 
         return Decision(action, chosen.after, chosen.id, fm_d.confidence, fm_d.reason_tag)
+
+    if (
+        tier == "auto"
+        and settings.auto_apply_enabled
+        and not settings.suggest_only
+        and top.confidence >= settings.auto_apply_min_confidence
+    ):
+        metrics.inc("auto_applied", 1)
+        return Decision("auto_apply", top.after, top.id, top.confidence, "soft_auto")
+
+    if top.confidence >= settings.suggestion_min_confidence:
+        metrics.inc("suggestion_shown", 1)
+        return Decision("suggest", top.after, top.id, top.confidence, "high_confidence")
+
+    if settings.apple_fm_enabled and settings.apple_fm_variant.upper() != "B":
+        return Decision("do_nothing", None, None, top.confidence, "fm_variant_gate")
 
     return Decision("do_nothing", None, None, top.confidence, "low_confidence")

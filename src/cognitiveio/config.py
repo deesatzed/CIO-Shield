@@ -61,6 +61,13 @@ class Settings:
     max_suggestions_per_min: int = 8
     dismissals_before_cooldown: int = 3
     cooldown_seconds: int = 45
+    candidate_conflict_max_gap: float = 0.08
+    candidate_conflict_min_confidence: float = 0.55
+
+    # Trust circuit breaker: dense rejection/undo signals trigger a temporary pause.
+    trust_circuit_window_seconds: int = 120
+    trust_circuit_negative_events: int = 4
+    trust_circuit_cooldown_seconds: int = 90
 
     # Hotkeys (actual mac binding is runtime-adapter dependent).
     panic_hotkey: str = "ctrl+option+p"

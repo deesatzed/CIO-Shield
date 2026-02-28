@@ -11,7 +11,12 @@ from rich.table import Table
 from cognitiveio.config import settings_from_env
 from cognitiveio.demo.demo_runner import run_demo
 from cognitiveio.evidence.health_card import build_health_card, render_health_card
-from cognitiveio.evidence.report_generator import ProofReport, generate_report_text
+from cognitiveio.evidence.report_generator import (
+    ProofReport,
+    build_report_trend,
+    generate_report_text,
+    render_report_trend_text,
+)
 from cognitiveio.memory.local_store import LocalStore
 from cognitiveio.policy.risk_scoring import RiskFlags
 from cognitiveio.runtime.app_runtime import AppRuntime, RuntimeEvent
@@ -156,8 +161,15 @@ def proof_report():
             undo_rate=float(report["undo_rate"]),
             top_patterns=list(report.get("top_patterns", [])),
             top_block_reasons=list(report.get("top_block_reasons", [])),
+            blocked_protected_context=int(report.get("blocked_protected_context", 0)),
+            blocked_trust_circuit=int(report.get("blocked_trust_circuit", 0)),
+            blocked_candidate_conflict=int(report.get("blocked_candidate_conflict", 0)),
+            blocked_profile_or_unknown=int(report.get("blocked_profile_or_unknown", 0)),
         )
         console.print(generate_report_text(parsed))
+        history = store.list_proof_reports(limit=6)
+        trend = build_report_trend(history)
+        console.print("\n" + render_report_trend_text(trend))
     finally:
         store.close()
 

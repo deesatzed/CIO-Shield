@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import fields
 from pathlib import Path
 from typing import Any, Dict
 
@@ -14,8 +15,14 @@ async def run_demo(settings: Settings) -> Dict[str, Any]:
     episodes_path = Path(__file__).with_name("demo_episodes.json")
     data = json.loads(episodes_path.read_text(encoding="utf-8"))
 
-    store = LocalStore(settings.db_path)
-    runtime = AppRuntime(settings=settings, store=store)
+    settings_dict = {f.name: getattr(settings, f.name) for f in fields(Settings)}
+    demo_settings = Settings(**settings_dict)
+    for key, value in data.get("settings_overrides", {}).items():
+        if hasattr(demo_settings, key):
+            setattr(demo_settings, key, value)
+
+    store = LocalStore(demo_settings.db_path)
+    runtime = AppRuntime(settings=demo_settings, store=store)
 
     results = []
     for ep in data["episodes"]:
@@ -44,16 +51,22 @@ async def run_demo(settings: Settings) -> Dict[str, Any]:
             )
         )
 
-        post_action = ep.get("post_action")
-        if post_action == "accept":
-            out = await runtime.process_event(RuntimeEvent(kind="accept"))
-        elif post_action == "dismiss":
-            out = await runtime.process_event(RuntimeEvent(kind="dismiss"))
-        elif post_action == "undo":
-            out = await runtime.process_event(RuntimeEvent(kind="undo"))
-        elif post_action == "accept_then_undo":
-            await runtime.process_event(RuntimeEvent(kind="accept"))
-            out = await runtime.process_event(RuntimeEvent(kind="undo"))
+        actions = []
+        single = ep.get("post_action")
+        if single:
+            actions.append(single)
+        actions.extend(ep.get("post_actions", []))
+
+        for action in actions:
+            if action == "accept":
+                out = await runtime.process_event(RuntimeEvent(kind="accept"))
+            elif action == "dismiss":
+                out = await runtime.process_event(RuntimeEvent(kind="dismiss"))
+            elif action == "undo":
+                out = await runtime.process_event(RuntimeEvent(kind="undo"))
+            elif action == "accept_then_undo":
+                await runtime.process_event(RuntimeEvent(kind="accept"))
+                out = await runtime.process_event(RuntimeEvent(kind="undo"))
 
         results.append(
             {

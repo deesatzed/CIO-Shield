@@ -1,4 +1,11 @@
 {
+  "settings_overrides": {
+    "suggestion_min_confidence": 0.3,
+    "candidate_conflict_max_gap": 0.25,
+    "trust_circuit_negative_events": 2,
+    "trust_circuit_window_seconds": 300,
+    "trust_circuit_cooldown_seconds": 120
+  },
   "episodes": [
     {
       "name": "Protected Mode in password field",
@@ -71,7 +78,37 @@
       "expected_action": "do_nothing"
     },
     {
-      "name": "Undo last applied change",
+      "name": "Candidate conflict guard in email profile",
+      "context": {
+        "app_name": "Mail"
+      },
+      "flags": {
+        "password_field": false,
+        "blacklisted_app": false
+      },
+      "token": "teh",
+      "boundary": " ",
+      "idle_ms": 420,
+      "candidates": [
+        {
+          "id": "c1",
+          "before": "teh",
+          "after": "the",
+          "count": 12,
+          "confidence": 0.99
+        },
+        {
+          "id": "c2",
+          "before": "teh",
+          "after": "ten",
+          "count": 11,
+          "confidence": 0.98
+        }
+      ],
+      "expected_action": "do_nothing"
+    },
+    {
+      "name": "Trust signal 1 - accept then undo",
       "context": {
         "app_name": "Mail"
       },
@@ -93,6 +130,53 @@
       ],
       "post_action": "accept_then_undo",
       "expected_action": "undo"
+    },
+    {
+      "name": "Trust signal 2 - dismissal",
+      "context": {
+        "app_name": "Mail"
+      },
+      "flags": {
+        "password_field": false,
+        "blacklisted_app": false
+      },
+      "token": "wierd",
+      "boundary": " ",
+      "idle_ms": 420,
+      "candidates": [
+        {
+          "id": "c3",
+          "before": "wierd",
+          "after": "weird",
+          "count": 5,
+          "confidence": 0.97
+        }
+      ],
+      "post_action": "dismiss",
+      "expected_action": "dismiss"
+    },
+    {
+      "name": "Trust circuit breaker cooldown",
+      "context": {
+        "app_name": "Mail"
+      },
+      "flags": {
+        "password_field": false,
+        "blacklisted_app": false
+      },
+      "token": "wierd",
+      "boundary": " ",
+      "idle_ms": 420,
+      "candidates": [
+        {
+          "id": "c3",
+          "before": "wierd",
+          "after": "weird",
+          "count": 5,
+          "confidence": 0.97
+        }
+      ],
+      "expected_action": "do_nothing"
     }
   ]
 }

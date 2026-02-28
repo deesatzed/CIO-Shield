@@ -66,6 +66,8 @@ class AppRuntime:
         self._suggestion_ts: Deque[float] = deque(maxlen=1024)
         self._dismissal_streak = 0
         self._cooldown_until_ts = 0.0
+        self._negative_event_ts: Deque[float] = deque(maxlen=512)
+        self._trust_pause_until_ts = 0.0
 
     @staticmethod
     def _now_ts() -> float:
@@ -74,6 +76,12 @@ class AppRuntime:
     @staticmethod
     def _is_boundary(ch: str) -> bool:
         return ch in {" ", "\n", ".", "!", "?", ",", ";", ":"}
+
+    @classmethod
+    def _strip_shared_boundary(cls, before: str, after: str) -> tuple[str, str]:
+        if before and after and before[-1] == after[-1] and cls._is_boundary(before[-1]):
+            return before[:-1], after[:-1]
+        return before.rstrip(), after.rstrip()
 
     def _recent_suggestions(self, now_ts: float) -> int:
         while self._suggestion_ts and (now_ts - self._suggestion_ts[0]) > 60.0:
@@ -87,6 +95,17 @@ class AppRuntime:
             protected_mode=self.protected_mode,
             paused=self.paused,
         )
+
+    def _record_negative_signal(self, now_ts: Optional[float] = None) -> None:
+        now = now_ts if now_ts is not None else self._now_ts()
+        self._negative_event_ts.append(now)
+        window = float(self.settings.trust_circuit_window_seconds)
+        while self._negative_event_ts and (now - self._negative_event_ts[0]) > window:
+            self._negative_event_ts.popleft()
+
+        if len(self._negative_event_ts) >= self.settings.trust_circuit_negative_events:
+            cooldown = float(self.settings.trust_circuit_cooldown_seconds)
+            self._trust_pause_until_ts = max(self._trust_pause_until_ts, now + cooldown)
 
     def _set_protected(self, on: bool, reason: str = "") -> None:
         self.protected_mode = on
@@ -127,6 +146,8 @@ class AppRuntime:
         )
         self.pending = None
         self._dismissal_streak = 0
+        self._negative_event_ts.clear()
+        self._trust_pause_until_ts = 0.0
         return self._result("accept", f"Accepted: {p.token} -> {p.replacement}")
 
     def dismiss_pending(self) -> RuntimeResult:
@@ -147,6 +168,7 @@ class AppRuntime:
 
         self.pending = None
         self._dismissal_streak += 1
+        self._record_negative_signal()
         if self._dismissal_streak >= self.settings.dismissals_before_cooldown:
             self._cooldown_until_ts = self._now_ts() + float(self.settings.cooldown_seconds)
         return self._result("dismiss", "Suggestion dismissed.")
@@ -156,7 +178,12 @@ class AppRuntime:
         if not rec:
             return self._result("do_nothing", "Nothing to undo.")
 
+        before_token, after_token = self._strip_shared_boundary(rec.before, rec.after)
+        if before_token and after_token:
+            self.store.record_undo_penalty(before_token, after_token)
+
         self.metrics.inc("undone", 1)
+        self._record_negative_signal()
         self.store.log_privacy_event(
             kind="stored",
             reason="stored",
@@ -167,10 +194,20 @@ class AppRuntime:
         return self._result("undo", f"Undo restored: {rec.after} -> {rec.before}")
 
     async def process_boundary_event(self, event: RuntimeEvent) -> RuntimeResult:
+        now = self._now_ts()
         if self.paused:
             self.metrics.inc("blocked", 1)
             self.store.log_privacy_event(kind="blocked", reason="paused", app_name=event.app_name)
             return self._result("do_nothing", "Paused - ignored input.")
+
+        if now < self._trust_pause_until_ts:
+            self.metrics.inc("blocked", 1)
+            self.store.log_privacy_event(
+                kind="blocked",
+                reason="trust_circuit_breaker",
+                app_name=event.app_name,
+            )
+            return self._result("do_nothing", "Trust cooldown active - suggestions temporarily paused.")
 
         if not self._is_boundary(event.boundary):
             return self._result("do_nothing", "No boundary trigger.")
@@ -205,7 +242,6 @@ class AppRuntime:
             for c in candidates_raw
         ]
 
-        now = self._now_ts()
         budget = BudgetState(
             suggestions_shown_recent=self._recent_suggestions(now),
             recent_dismissals=self._dismissal_streak,
@@ -229,7 +265,10 @@ class AppRuntime:
         )
 
         if decision.action == "do_nothing":
-            if decision.reason_tag.startswith("blocked"):
+            blocked_reasons = {"candidate_conflict", "unknown_profile"}
+            if decision.reason_tag.startswith("profile_block:"):
+                blocked_reasons.add(decision.reason_tag)
+            if decision.reason_tag.startswith("blocked") or decision.reason_tag in blocked_reasons:
                 self.store.log_privacy_event(
                     kind="blocked",
                     reason=decision.reason_tag,

@@ -24,13 +24,23 @@ def build_health_card(report: Dict[str, Any]) -> OrganismHealthCard:
     accept_rate = float(report.get("accept_rate", 0.0))
     blocked = int(report.get("blocked", 0))
     dismiss_rate = float(report.get("dismiss_rate", 0.0))
+    trust_blocks = int(report.get("blocked_trust_circuit", 0))
+    conflict_blocks = int(report.get("blocked_candidate_conflict", 0))
+    protected_blocks = int(report.get("blocked_protected_context", 0))
 
-    sota_conf = min(10.0, max(1.0, 4.0 + accept_rate * 4.0 - dismiss_rate * 2.0))
+    sota_conf = min(
+        10.0,
+        max(1.0, 4.0 + accept_rate * 4.0 - dismiss_rate * 2.0 - (trust_blocks * 0.1)),
+    )
     architecture_score = 20.0 if blocked > 0 else 17.0
     evolution_readiness = 3.8
     complexity_budget_used = 72
 
-    ethical_risk = "Low" if blocked > 0 else "Medium"
+    ethical_risk = "Low" if protected_blocks > 0 else "Medium"
+    weakest_organ = "Pattern confidence calibration" if (trust_blocks > 0 or conflict_blocks > 0) else "macOS capture adapter integration"
+    biggest_risk = "False positives in high-velocity typing contexts"
+    if trust_blocks > 0:
+        biggest_risk = "Trust circuit breaker activations from repeated negative outcomes"
 
     return OrganismHealthCard(
         application="CIO-II",
@@ -40,10 +50,14 @@ def build_health_card(report: Dict[str, Any]) -> OrganismHealthCard:
         complexity_budget_used=complexity_budget_used,
         ethical_risk_level=ethical_risk,
         strongest_organ="Decision + Safety Gates",
-        weakest_organ="macOS capture adapter integration",
-        biggest_risk="False positives in high-velocity typing contexts",
+        weakest_organ=weakest_organ,
+        biggest_risk=biggest_risk,
         biggest_blind_spot="Cross-app cursor restore edge cases",
-        first_iteration_focus="Improve suggestion precision in email/docs while reducing dismissals",
+        first_iteration_focus=(
+            "Reduce trust-circuit activations by improving confidence gating and undo-weighted learning"
+            if trust_blocks > 0
+            else "Improve suggestion precision in email/docs while reducing dismissals"
+        ),
         kill_criteria="If accept_rate < 0.20 for 30 consecutive sessions",
     )
 

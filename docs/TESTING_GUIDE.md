@@ -30,8 +30,10 @@ Expected outcomes:
 1. Protected mode event is blocked
 2. Suggest-only flow appears and can be accepted
 3. Code profile has no intervention
-4. Undo restores prior payload
-5. Proof report and ledger are written locally
+4. Candidate-conflict ambiguity yields do-nothing
+5. Trust circuit breaker appears after negative signals
+6. Undo restores prior payload
+7. Proof report and ledger are written locally
 
 ## Manual macOS QA (Native Mode)
 

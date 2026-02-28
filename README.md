@@ -1,136 +1,215 @@
 # CIO-II
 
-CIO-II is a local-first macOS typing copilot that is intentionally **not autocorrect**:
-- suggest-only by default
-- hard safety stops for protected contexts
-- reversible actions with perfect undo records
-- auditable privacy ledger and proof report
-- optional Apple FM arbiter as selector-only (never free generation)
-- app-aware apply adapters (keystroke/pasteboard/command-undo strategies)
+CIO-II is a local-first typing assistant for macOS that is designed to be helpful without taking control away from you.
 
-## Why this app
-It is designed to preserve user intent while reducing repetitive correction friction in everyday writing, without cloud dependency.
+It is intentionally **not autocorrect**.
 
-## Quick start
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-./run_demo.sh
-```
+## What Problem It Solves
+If you type a lot every day, small errors add up:
+- repeated typos (`teh`, `recieve`, `wierd`)
+- switching context between writing and fixing
+- losing trust when tools rewrite text incorrectly
 
-## Startup procedures
-Use the full launch runbook:
-- `docs/STARTUP_PROCEDURES.md`
-- `docs/TESTING_GUIDE.md`
+CIO-II reduces that friction while preserving your intent.
 
-Launch page:
-- `docs/index.html` (GitHub Pages ready)
+## Who This Is For
+This project is for Mac users who:
+- type frequently in email, docs, chat, and notes
+- want assistance without cloud dependency
+- care about auditability and safety controls
+- have moderate technical comfort, but are not full-time software engineers
 
-Pre-advertising checklist:
-1. `pytest -q`
-2. `./run_demo.sh`
-3. `PYTHONPATH=src python -m cognitiveio.cli proof-report`
-4. `PYTHONPATH=src python -m cognitiveio.cli health-card`
-5. `PYTHONPATH=src python -m cognitiveio.cli run --mode mac` and verify `CIO/CIO-P/CIO-II`
+## Why Someone Would Use It (Benefits)
+1. Fewer interruptions while writing:
+- suggestions appear only at safe moments (word boundary + idle pause)
+- no popups, no blocking dialogs
+2. More trust than autocorrect:
+- default is suggest-only
+- you choose with `Tab` (accept) or `Esc` (dismiss)
+- undo path is explicit and tracked
+3. Better privacy posture:
+- local-only storage
+- privacy ledger of blocked/stored events
+- no raw keystroke stream persisted
+4. Predictable safety behavior:
+- protected contexts block intervention
+- unknown/code/terminal contexts default to no action
+- panic hotkey can pause everything instantly
 
-## uv environment setup (recommended)
-`uv` can manage one local environment that includes this app, PyObjC runtime support, and optional Apple FM support.
+## Real Use Cases
+1. Email and support replies:
+- Benefit: catches repeated high-confidence typos without silently changing meaning
+2. Writing documentation:
+- Benefit: keeps flow; suggestion appears only when you pause naturally
+3. Fast note-taking:
+- Benefit: if typing is very fast, CIO-II suppresses suggestions to avoid noise
+4. Sensitive workflows:
+- Benefit: in password/protected contexts, it blocks capture and intervention
+5. Mixed work (writing + coding):
+- Benefit: in code/terminal profiles it does nothing, so identifiers are not touched
 
+## What Makes It “Not Autocorrect”
+1. Default mode is `suggest-only`, not silent replacement.
+2. Unknown profile => `do_nothing`.
+3. Code/terminal profile => `do_nothing`.
+4. Candidate ambiguity => `do_nothing` unless optional safe arbiter path is enabled.
+5. Optional Apple FM path is selector-only:
+- can choose from provided candidates
+- or return `do_nothing`
+- cannot invent replacement text
+
+## Safety and Privacy Model (Plain Language)
+1. Protected Mode:
+- If password field/excluded context is detected, CIO-II blocks action.
+- Indicator state reflects this in native mode (`CIO-P`).
+2. Panic key:
+- Immediately pauses observation/intervention (`CIO-II` status in menu bar).
+3. Local data:
+- Stored in local SQLite under `~/.cognitiveio` (or configured path).
+- Includes learned patterns, privacy ledger, and proof reports.
+4. Auditability:
+- `proof-report` shows accept/dismiss/undo/block rates.
+- `privacy-ledger` shows blocked reasons and minimal event metadata.
+
+## Installation (Recommended: `uv`)
+
+### Requirements
+- macOS
+- Python 3.11+
+- `uv` installed
+
+### Setup
 ```bash
 cd /Users/o2satz/python-apple-fm-sdk/cioStart
 uv venv .venv
 source .venv/bin/activate
 uv pip install -e ".[dev,mac]"
+```
 
-# Optional: install local python-apple-fm-sdk from parent repo source
+Optional Apple FM (still off by default):
+```bash
+# install local python-apple-fm-sdk from parent repo
 uv pip install -e ..
+```
 
-# Optional: enable FM arbiter at runtime
+## First 10 Minutes (New User Walkthrough)
+1. Run deterministic demo:
+```bash
+./run_demo.sh
+```
+2. Print proof report:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli proof-report
+```
+3. Print health card:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli health-card
+```
+4. View privacy ledger:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
+```
+5. Try native macOS mode:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli run --mode mac
+```
+
+## Daily Commands
+```bash
+# Headless interactive mode
+./run.sh
+
+# Native macOS event-tap mode
+PYTHONPATH=src python -m cognitiveio.cli run --mode mac
+
+# Demo mode
+./run_demo.sh
+
+# Reports
+PYTHONPATH=src python -m cognitiveio.cli proof-report
+PYTHONPATH=src python -m cognitiveio.cli health-card
+
+# Privacy ledger
+PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
+PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --export-path ./ledger.json
+
+# FM arbiter status
+PYTHONPATH=src python -m cognitiveio.cli arbiter-status
+
+# Delete all local CIO-II data
+PYTHONPATH=src python -m cognitiveio.cli delete-all --confirm
+```
+
+## Native macOS UX and Controls
+1. Menu bar states:
+- `CIO`: running
+- `CIO-P`: protected mode active
+- `CIO-II`: paused
+2. Suggestion controls:
+- `Tab`: accept suggestion
+- `Esc`: dismiss suggestion
+3. Hotkeys (default):
+- panic toggle: `ctrl+option+p`
+- undo: `ctrl+option+z`
+
+## Runtime Defaults
+- `suggest_only = true`
+- `auto_apply_enabled = false`
+- `apple_fm_enabled = false`
+- `apple_fm_variant = A` (deterministic default)
+- unknown/code/terminal profiles default to `do_nothing`
+
+## Environment Variables You May Actually Use
+```bash
+# Change local data location
+export COGNITIVEIO_HOME=/path/to/local/dir
+
+# Enable optional Apple FM arbiter
 export COGNITIVEIO_ENABLE_APPLE_FM=1
-# Optional: force arbiter variant for demos (A or B)
+
+# Force FM variant A or B
 export COGNITIVEIO_ARB_VARIANT=B
-# Optional: override hotkeys
+
+# Override hotkeys
 export COGNITIVEIO_PANIC_HOTKEY=ctrl+option+p
 export COGNITIVEIO_UNDO_HOTKEY=ctrl+option+z
 ```
 
-## Main commands
+## Troubleshooting
+1. “No suggestions appear”:
+- check you are at a word boundary
+- check idle pause is reached
+- check profile is not code/terminal/unknown
+- check trust cooldown is not active
+2. “mac mode doesn’t work”:
+- grant Accessibility permission in macOS settings for your terminal/python process
+3. “I want a clean reset”:
+- run `delete-all --confirm`
+4. “I only want local behavior”:
+- leave Apple FM disabled (default)
+
+## Testing and Release Readiness
 ```bash
-# Interactive headless runtime
-./run.sh
-
-# Explicit macOS event-tap mode (requires PyObjC + Accessibility permission)
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac
-
-# Deterministic showpiece demo
+pytest -q
 ./run_demo.sh
-
-# Show latest local proof report
 PYTHONPATH=src python -m cognitiveio.cli proof-report
-
-# Show health card
 PYTHONPATH=src python -m cognitiveio.cli health-card
-
-# Show FM arbiter variant status
-PYTHONPATH=src python -m cognitiveio.cli arbiter-status
-
-# Show/export privacy ledger
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --export-path ./ledger.json
-
-# Delete all local data
-PYTHONPATH=src python -m cognitiveio.cli delete-all --confirm
 ```
 
-## Safety defaults
-- `suggest_only = true`
-- `auto_apply_enabled = false`
-- `apple_fm_enabled = false`
-- `apple_fm_variant = A` (stable local assignment unless overridden)
-- `unknown profile => do_nothing`
-- `code/terminal profiles => do_nothing`
-
-## PyObjC and Apple FM fit
-- PyObjC (`.[mac]`) powers the native macOS event tap bridge (`--mode mac`).
-- `python-apple-fm-sdk` is optional and only used by the selector-only arbiter path.
-- If Apple FM SDK is missing or unavailable on device, decisions fail safe to deterministic `do_nothing/suggest` logic.
-
-## Current macOS runtime behavior
-- Ghost suggestions are shown via a lightweight Cocoa overlay when available (fallback: console indicator).
-- A menu bar status indicator is always visible in mac mode:
-  - `CIO` = running
-  - `CIO-P` = Protected Mode active
-  - `CIO-II` = paused via panic hotkey
-- Accept (`Tab`) applies replacement with app-aware strategy:
-  - keystroke synthesis by default
-  - pasteboard-assisted insertion for selected text-heavy apps
-- Undo (`Ctrl+Option+Z`) prefers native `Command+Z` in original app context, with manual fallback.
-
-## Local data location
-By default the app writes under `~/.cognitiveio`. If unavailable, it falls back to `./.cognitiveio`.
-Override with:
-```bash
-export COGNITIVEIO_HOME=/path/to/local/dir
-```
-
-## Documentation
-- `docs/CONTRACTS.md`
-- `docs/ARCH_OPTIONS.md`
-- `docs/DEPENDENCY_TRIBUNAL.md`
-- `docs/COMPLEXITY_BUDGET.md`
-- `docs/ADVERSARIAL_TEST_MATRIX.md`
-- `docs/BUILD_PLAN_SHOWPIECE.md`
-- `docs/DEMO_SCRIPT.md`
+## Documentation Map
+- `docs/PRODUCT_CONTRACT.md`
+- `docs/FEATURE_MATRIX.md`
+- `docs/IMPLEMENTATION_ROADMAP.md`
 - `docs/STARTUP_PROCEDURES.md`
 - `docs/TESTING_GUIDE.md`
+- `docs/DEMO_SCRIPT.md`
 - `docs/BLOG_CIO_II_LAUNCH.md`
 - `docs/index.html`
 
-## GitHub Pages
-To publish the launch page:
-1. Open GitHub repo settings for `deesatzed/CIO-II`
-2. Go to `Pages`
-3. Source: `Deploy from a branch`
-4. Branch: `main` and folder: `/docs`
-5. Save and wait for the site URL
+## GitHub Pages (Optional)
+To publish the docs landing page:
+1. Open repo settings for `deesatzed/CIO-II`.
+2. Go to `Pages`.
+3. Set source to `Deploy from a branch`.
+4. Select branch `main` and folder `/docs`.
+5. Save.

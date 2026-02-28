@@ -28,6 +28,8 @@ export COGNITIVEIO_ARB_VARIANT=B
 - Protected mode blocked event
 - Suggest-only acceptance
 - No code-profile intervention
+- Candidate-conflict guard event
+- Trust circuit breaker cooldown event
 - Undo event
 3. Print proof report:
 ```bash
