@@ -50,6 +50,7 @@ class Settings:
     apple_fm_enabled: bool = False
     apple_fm_gray_zone_low: float = 0.45
     apple_fm_gray_zone_high: float = 0.92
+    apple_fm_timeout_seconds: float = 0.08  # 80ms contract (PRODUCT_CONTRACT.md).
     apple_fm_ab_enabled: bool = True
     apple_fm_variant: str = "A"  # A deterministic-only, B allows arbiter in gray-zone.
 

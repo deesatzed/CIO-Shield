@@ -97,7 +97,7 @@ async def test_candidate_conflict_blocks_without_fm():
 async def test_candidate_conflict_uses_fm_variant_b(monkeypatch):
     called = {"n": 0}
 
-    async def _fake(packet, candidates):  # noqa: ANN001
+    async def _fake(packet, candidates, **kwargs):  # noqa: ANN001
         called["n"] += 1
         return type(
             "X",
@@ -140,7 +140,7 @@ async def test_candidate_conflict_uses_fm_variant_b(monkeypatch):
 async def test_fm_variant_a_blocks_arbiter(monkeypatch):
     called = {"n": 0}
 
-    async def _fake(packet, candidates):  # noqa: ANN001
+    async def _fake(packet, candidates, **kwargs):  # noqa: ANN001
         called["n"] += 1
         return type(
             "X",
@@ -175,7 +175,7 @@ async def test_fm_variant_a_blocks_arbiter(monkeypatch):
 async def test_fm_variant_b_allows_arbiter(monkeypatch):
     called = {"n": 0}
 
-    async def _fake(packet, candidates):  # noqa: ANN001
+    async def _fake(packet, candidates, **kwargs):  # noqa: ANN001
         called["n"] += 1
         return type(
             "X",

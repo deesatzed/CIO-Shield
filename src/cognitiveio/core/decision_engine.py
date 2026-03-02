@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -71,7 +73,36 @@ def _has_candidate_conflict(cands: List[Candidate], settings: Settings) -> bool:
     return gap <= settings.candidate_conflict_max_gap
 
 
+_log = logging.getLogger(__name__)
+
+_DECISION_PATH_WARN_SECONDS = 0.005  # 5ms target (PRODUCT_CONTRACT.md).
+
+
 async def decide(
+    ctx: AppContext,
+    flags: RiskFlags,
+    candidates: List[Candidate],
+    context_window: Optional[Dict[str, str]],
+    metrics: Metrics,
+    budget: BudgetState,
+    settings: Settings,
+    user_prefs: Optional[Dict[str, Any]] = None,
+) -> Decision:
+    t0 = time.perf_counter()
+    result = await _decide_inner(
+        ctx, flags, candidates, context_window, metrics, budget, settings, user_prefs
+    )
+    elapsed = time.perf_counter() - t0
+    if elapsed > _DECISION_PATH_WARN_SECONDS:
+        _log.warning(
+            "Decision path took %.1fms (target <=5ms): reason=%s",
+            elapsed * 1000,
+            result.reason_tag,
+        )
+    return result
+
+
+async def _decide_inner(
     ctx: AppContext,
     flags: RiskFlags,
     candidates: List[Candidate],
@@ -140,7 +171,9 @@ async def decide(
             FMCandidate(id=c.id, before=c.before, after=c.after, count=c.count, confidence=c.confidence)
             for c in candidates[:5]
         ]
-        fm_d = await decide_with_apple_fm(pkt, fm_candidates)
+        fm_d = await decide_with_apple_fm(
+            pkt, fm_candidates, timeout_seconds=settings.apple_fm_timeout_seconds
+        )
 
         if fm_d.action == "do_nothing" or fm_d.chosen_candidate_id is None:
             return Decision("do_nothing", None, None, fm_d.confidence, fm_d.reason_tag)
