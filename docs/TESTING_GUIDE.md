@@ -1,6 +1,8 @@
 # CIO-II Testing Guide
 
 This guide covers automated and manual validation before release.
+For complete per-feature coverage and release sign-off mapping, see:
+- `docs/TEST_PLAN_FEATURE_MATRIX.md`
 
 ## Automated Tests
 

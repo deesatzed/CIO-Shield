@@ -283,6 +283,7 @@ PYTHONPATH=src python -m cognitiveio.cli health-card
 - `docs/TESTING_GUIDE.md`
 - `docs/DEMO_SCRIPT.md`
 - `docs/GIT_WORKFLOW.md`
+- `docs/TEST_PLAN_FEATURE_MATRIX.md`
 - `docs/BLOG_CIO_II_LAUNCH.md`
 - `docs/index.html`
 
