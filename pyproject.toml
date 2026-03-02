@@ -62,3 +62,7 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = ["Cocoa", "Quartz", "apple_fm_sdk", "ApplicationServices", "sqlcipher3"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["objc", "objc.*"]
+ignore_missing_imports = true

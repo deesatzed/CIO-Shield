@@ -37,6 +37,8 @@ class MacTextApplier:
     def __init__(self, bridge: Any):
         self.bridge = bridge
         self.resolver = SecretResolver(on_access=self._on_secret_access)
+        self.last_error = ""
+        self.last_unresolved_aliases: list[str] = []
 
     def _on_secret_access(self, alias: str, provider: str, status: str) -> None:
         runtime = getattr(self.bridge, "runtime", None)
@@ -65,8 +67,11 @@ class MacTextApplier:
         app_name: str,
         app_bundle_id: Optional[str] = None,
     ) -> bool:
+        self.last_error = ""
+        self.last_unresolved_aliases = []
         del app_bundle_id
         if not before:
+            self.last_error = "No source text to replace."
             return False
 
         target_after = after
@@ -83,6 +88,12 @@ class MacTextApplier:
             resolved_after, unresolved = self.resolver.resolve_text(target_after)
             if unresolved:
                 # Fail closed when a required alias cannot be resolved.
+                self.last_unresolved_aliases = list(unresolved)
+                self.last_error = (
+                    "Missing secret alias: "
+                    + ", ".join(unresolved)
+                    + ". Set COGNITIVEIO_SECRET_<ALIAS> or configure a vault provider."
+                )
                 return False
             target_after = resolved_after
 
@@ -94,11 +105,17 @@ class MacTextApplier:
         if strategy == "pasteboard":
             if self.bridge._paste_text(target_after):
                 return True
-            return self.bridge._post_text(target_after)
+            ok = self.bridge._post_text(target_after)
+            if not ok:
+                self.last_error = "Failed to apply replacement text."
+            return ok
 
         if self.bridge._post_text(target_after):
             return True
-        return self.bridge._paste_text(target_after)
+        ok = self.bridge._paste_text(target_after)
+        if not ok:
+            self.last_error = "Failed to apply replacement text."
+        return ok
 
     def _activate_bundle(self, bundle_id: Optional[str]) -> bool:
         if not bundle_id:

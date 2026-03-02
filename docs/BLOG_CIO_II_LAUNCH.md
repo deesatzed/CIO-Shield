@@ -97,9 +97,23 @@ CIO-II blocks capture and suggestions, and marks blocked state clearly.
 ### Example: Secret placeholder insertion
 You type a configured alias like `{{SECRET:STRIPE_API_KEY}}`.  
 CIO-II resolves it through a secret provider at apply-time and redacts secret-like values from logs and reports.
+If an alias is missing, CIO-II fails closed and shows an explicit message instead of inserting unresolved text.
 
 ### Example: Trust repair loop
 If you keep dismissing or undoing, CIO-II enters a trust cooldown and stops nudging temporarily.
+The macOS status now shows the live cooldown countdown.
+
+### Example: Explainability from menu bar
+Use the menu bar action `Explain Last Decision` to print the latest decision summary:
+- action
+- reason tag
+- profile
+- token
+- trust cooldown remaining
+
+### Example: Secret inventory from menu bar
+Use `Show Required Secrets` to print alias names already observed by CIO-II.
+This gives an operator-facing checklist for environment or vault provisioning.
 
 ## Why This Matters Now
 
@@ -146,6 +160,17 @@ PYTHONPATH=src python -m cognitiveio.cli run --mode mac
 See proof report:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli proof-report
+```
+
+Explain latest decision:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli explain-last
+PYTHONPATH=src python -m cognitiveio.cli explain-last --json
+```
+
+List required secret aliases:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli required-secrets --limit 100
 ```
 
 ## What CIO-II Is Not

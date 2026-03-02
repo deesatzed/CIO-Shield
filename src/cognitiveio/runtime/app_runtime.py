@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
+import json
+from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional
 
 from cognitiveio.config import Settings
@@ -68,6 +70,9 @@ class AppRuntime:
         self._cooldown_until_ts = 0.0
         self._negative_event_ts: Deque[float] = deque(maxlen=512)
         self._trust_pause_until_ts = 0.0
+        self._last_decision: Dict[str, Any] = {}
+        self._last_decision_path: Path = self.settings.report_dir / "latest_decision.json"
+        self._last_decision_path.parent.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _merge_candidates(*candidate_groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -116,6 +121,67 @@ class AppRuntime:
             protected_mode=self.protected_mode,
             paused=self.paused,
         )
+
+    @staticmethod
+    def _candidate_preview(candidates: List[Dict[str, Any]], limit: int = 3) -> List[Dict[str, Any]]:
+        preview: List[Dict[str, Any]] = []
+        for row in candidates[:limit]:
+            preview.append(
+                {
+                    "id": str(row.get("id", "")),
+                    "before": str(row.get("before", "")),
+                    "after": str(row.get("after", "")),
+                    "confidence": float(row.get("confidence", 0.0)),
+                    "count": int(row.get("count", 0)),
+                }
+            )
+        return preview
+
+    def _record_last_decision(
+        self,
+        *,
+        action: str,
+        reason_tag: str,
+        app_name: str,
+        profile: str,
+        token: str,
+        idle_ms: int,
+        typing_fast: bool,
+        candidates: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        snapshot = {
+            "ts": datetime.now().timestamp(),
+            "action": action,
+            "reason_tag": reason_tag,
+            "app_name": app_name,
+            "profile": profile,
+            "token": token,
+            "idle_ms": int(idle_ms),
+            "typing_fast": bool(typing_fast),
+            "trust_cooldown_remaining_seconds": self.trust_cooldown_remaining_seconds(),
+            "candidates": self._candidate_preview(candidates or []),
+        }
+        self._last_decision = snapshot
+        try:
+            self._last_decision_path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+        except Exception:
+            return
+
+    def last_decision_snapshot(self) -> Dict[str, Any]:
+        if self._last_decision:
+            return dict(self._last_decision)
+        try:
+            data = json.loads(self._last_decision_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+        return {}
+
+    def trust_cooldown_remaining_seconds(self, now_ts: Optional[float] = None) -> int:
+        now = self._now_ts() if now_ts is None else now_ts
+        remaining = int(max(0.0, self._trust_pause_until_ts - now))
+        return remaining
 
     def _record_negative_signal(self, now_ts: Optional[float] = None) -> None:
         now = now_ts if now_ts is not None else self._now_ts()
@@ -220,9 +286,19 @@ class AppRuntime:
 
     async def process_boundary_event(self, event: RuntimeEvent) -> RuntimeResult:
         now = self._now_ts()
+        profile = classify_profile(AppContext(app_name=event.app_name))
         if self.paused:
             self.metrics.inc("blocked", 1)
             self.store.log_privacy_event(kind="blocked", reason="paused", app_name=event.app_name)
+            self._record_last_decision(
+                action="do_nothing",
+                reason_tag="paused",
+                app_name=event.app_name,
+                profile=profile,
+                token=event.token,
+                idle_ms=event.idle_ms,
+                typing_fast=event.typing_fast,
+            )
             return self._result("do_nothing", "Paused - ignored input.")
 
         if now < self._trust_pause_until_ts:
@@ -232,12 +308,43 @@ class AppRuntime:
                 reason="trust_circuit_breaker",
                 app_name=event.app_name,
             )
-            return self._result("do_nothing", "Trust cooldown active - suggestions temporarily paused.")
+            remaining = self.trust_cooldown_remaining_seconds(now)
+            self._record_last_decision(
+                action="do_nothing",
+                reason_tag="trust_circuit_breaker",
+                app_name=event.app_name,
+                profile=profile,
+                token=event.token,
+                idle_ms=event.idle_ms,
+                typing_fast=event.typing_fast,
+            )
+            return self._result(
+                "do_nothing",
+                f"Trust cooldown active ({remaining}s remaining) - suggestions temporarily paused.",
+            )
 
         if not self._is_boundary(event.boundary):
+            self._record_last_decision(
+                action="do_nothing",
+                reason_tag="no_boundary_trigger",
+                app_name=event.app_name,
+                profile=profile,
+                token=event.token,
+                idle_ms=event.idle_ms,
+                typing_fast=event.typing_fast,
+            )
             return self._result("do_nothing", "No boundary trigger.")
 
         if event.idle_ms < self.settings.idle_pause_ms:
+            self._record_last_decision(
+                action="do_nothing",
+                reason_tag="idle_threshold_not_met",
+                app_name=event.app_name,
+                profile=profile,
+                token=event.token,
+                idle_ms=event.idle_ms,
+                typing_fast=event.typing_fast,
+            )
             return self._result("do_nothing", "Idle threshold not met.")
 
         flags = event.flags or RiskFlags()
@@ -248,18 +355,34 @@ class AppRuntime:
             or (flags.detector_uncertain and self.settings.protected_mode_blocks_all)
         ):
             self._set_protected(True, reason="password_or_excluded")
+            self._record_last_decision(
+                action="do_nothing",
+                reason_tag="password_or_excluded",
+                app_name=event.app_name,
+                profile=profile,
+                token=event.token,
+                idle_ms=event.idle_ms,
+                typing_fast=event.typing_fast,
+            )
             return self._result("do_nothing", "Protected Mode Active - no capture, no suggestions.")
 
         self.protected_mode = False
-
         ctx = AppContext(app_name=event.app_name)
-        profile = classify_profile(ctx)
 
         typo_candidates = self.store.get_candidates_for_token(event.token)
         phrase_candidates = self.store.get_phrase_candidates(event.token, profile=profile)
         concept_candidates = self.store.get_concept_candidates(event.token, profile=profile)
         candidates_raw = self._merge_candidates(typo_candidates, phrase_candidates, concept_candidates)
         if not candidates_raw:
+            self._record_last_decision(
+                action="do_nothing",
+                reason_tag="no_local_candidates",
+                app_name=event.app_name,
+                profile=profile,
+                token=event.token,
+                idle_ms=event.idle_ms,
+                typing_fast=event.typing_fast,
+            )
             return self._result("do_nothing", "No local candidates.")
 
         candidates = [
@@ -304,9 +427,29 @@ class AppRuntime:
                     profile=profile,
                     token_hash=self.store.hash_token(event.token),
                 )
+            self._record_last_decision(
+                action="do_nothing",
+                reason_tag=decision.reason_tag,
+                app_name=event.app_name,
+                profile=profile,
+                token=event.token,
+                idle_ms=event.idle_ms,
+                typing_fast=event.typing_fast,
+                candidates=candidates_raw,
+            )
             return self._result("do_nothing", f"No intervention ({decision.reason_tag}).")
 
         if not decision.replacement or not decision.chosen_candidate_id:
+            self._record_last_decision(
+                action="do_nothing",
+                reason_tag="no_replacement_selected",
+                app_name=event.app_name,
+                profile=profile,
+                token=event.token,
+                idle_ms=event.idle_ms,
+                typing_fast=event.typing_fast,
+                candidates=candidates_raw,
+            )
             return self._result("do_nothing", "No replacement selected.")
 
         self._suggestion_ts.append(now)
@@ -334,8 +477,28 @@ class AppRuntime:
 
         if decision.action == "auto_apply":
             self.metrics.inc("auto_applied", 1)
+            self._record_last_decision(
+                action="auto_apply",
+                reason_tag=decision.reason_tag,
+                app_name=event.app_name,
+                profile=profile,
+                token=event.token,
+                idle_ms=event.idle_ms,
+                typing_fast=event.typing_fast,
+                candidates=candidates_raw,
+            )
             return self.accept_pending()
 
+        self._record_last_decision(
+            action="suggest",
+            reason_tag=decision.reason_tag,
+            app_name=event.app_name,
+            profile=profile,
+            token=event.token,
+            idle_ms=event.idle_ms,
+            typing_fast=event.typing_fast,
+            candidates=candidates_raw,
+        )
         return self._result(
             "suggest",
             f"Ghost suggestion: {event.token} -> {decision.replacement} [Tab accept | Esc dismiss]",

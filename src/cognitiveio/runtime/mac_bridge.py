@@ -229,7 +229,13 @@ class MacRuntimeBridge:
 
         self.runtime = runtime
         self.detector = ProtectedContextDetector()
-        self.presenter = create_suggestion_presenter(prefer_overlay=True)
+        menu_callbacks = {
+            "toggle_pause": self._menu_toggle_pause,
+            "explain_last": self._menu_explain_last,
+            "show_required_secrets": self._menu_show_required_secrets,
+            "manage_dot_phrases": self._menu_manage_dot_phrases,
+        }
+        self.presenter = create_suggestion_presenter(prefer_overlay=True, menu_callbacks=menu_callbacks)
         self.applier = MacTextApplier(self)
         self.panic_binding = parse_hotkey_spec(self.runtime.settings.panic_hotkey) or (
             35,
@@ -409,6 +415,12 @@ class MacRuntimeBridge:
                 if ok:
                     out = asyncio.run(self.runtime.process_event(RuntimeEvent(kind="accept")))
                     print(out.message)
+                else:
+                    reason = self.applier.last_error or "Unable to apply replacement."
+                    print(f"Accept blocked: {reason}")
+                    dismiss_out = asyncio.run(self.runtime.process_event(RuntimeEvent(kind="dismiss")))
+                    print(dismiss_out.message)
+                    self._set_status_text(f"Accept blocked - {reason}")
                 self.presenter.hide()
             return True
 
@@ -426,13 +438,7 @@ class MacRuntimeBridge:
 
         # Configurable panic hotkey.
         if self._hotkey_matches(keycode, modset, self.panic_binding):
-            out = asyncio.run(self.runtime.process_event(RuntimeEvent(kind="panic")))
-            print(out.message)
-            self.presenter.hide()
-            if out.paused:
-                self._set_status_text("Paused - no capture, no suggestions.")
-            else:
-                self._set_status_text("")
+            self._menu_toggle_pause()
             return True
 
         # Configurable undo hotkey.
@@ -525,7 +531,11 @@ class MacRuntimeBridge:
             if self.runtime.paused:
                 self._set_status_text("Paused - no capture, no suggestions.")
             else:
-                self._set_status_text("")
+                cooldown = self.runtime.trust_cooldown_remaining_seconds()
+                if cooldown > 0:
+                    self._set_status_text(f"Trust cooldown active ({cooldown}s)")
+                else:
+                    self._set_status_text("")
 
             if key == "delete":
                 self.current_token = self.current_token[:-1]
@@ -566,6 +576,74 @@ class MacRuntimeBridge:
             print(f"mac bridge callback error: {exc}")
 
         return event
+
+    def _menu_toggle_pause(self) -> None:
+        out = asyncio.run(self.runtime.process_event(RuntimeEvent(kind="panic")))
+        print(out.message)
+        self.presenter.hide()
+        if out.paused:
+            self._set_status_text("Paused - no capture, no suggestions.")
+            return
+        cooldown = self.runtime.trust_cooldown_remaining_seconds()
+        if cooldown > 0:
+            self._set_status_text(f"Trust cooldown active ({cooldown}s)")
+            return
+        self._set_status_text("")
+
+    def _menu_explain_last(self) -> None:
+        snapshot = self.runtime.last_decision_snapshot()
+        if not snapshot:
+            print("No decision snapshot available yet.")
+            self._set_status_text("No decision snapshot available.")
+            return
+
+        action = str(snapshot.get("action", "do_nothing"))
+        reason = str(snapshot.get("reason_tag", "unknown"))
+        profile = str(snapshot.get("profile", "unknown"))
+        token = str(snapshot.get("token", ""))
+        idle_ms = int(snapshot.get("idle_ms", 0))
+        typing_fast = bool(snapshot.get("typing_fast", False))
+        remaining = int(snapshot.get("trust_cooldown_remaining_seconds", 0))
+
+        print(
+            "Last decision:"
+            f" action={action}"
+            f" reason={reason}"
+            f" profile={profile}"
+            f" token='{token}'"
+            f" idle_ms={idle_ms}"
+            f" typing_fast={typing_fast}"
+            f" trust_cooldown_remaining={remaining}s"
+        )
+        self._set_status_text(f"{action} ({reason})")
+
+    def _menu_show_required_secrets(self) -> None:
+        rows = self.runtime.store.list_secret_aliases(limit=100)
+        if not rows:
+            print("No required secret aliases recorded yet.")
+            print("Tip: accept a suggestion containing {{SECRET:ALIAS}} to register aliases.")
+            self._set_status_text("No required secret aliases.")
+            return
+
+        print("Required secret aliases (most recent first):")
+        for row in rows:
+            print(f"- {row['alias']} (usage={row['usage_count']})")
+        self._set_status_text(f"Required secrets: {len(rows)} aliases")
+
+    def _menu_manage_dot_phrases(self) -> None:
+        rows = self.runtime.store.list_phrase_patterns(limit=12)
+        print("Dot-phrase management commands:")
+        print('PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" "Best,\\nYour Name" --profile email_docs')
+        print("PYTHONPATH=src python -m cognitiveio.cli phrase-list --profile email_docs")
+        print("PYTHONPATH=src python -m cognitiveio.cli phrase-remove .meW --profile email_docs")
+        if rows:
+            print("Configured phrase triggers:")
+            for row in rows:
+                profile = row["profile"] or "*"
+                print(f"- {row['before']} ({profile}) conf={row['confidence']:.2f}")
+        else:
+            print("No phrase patterns configured yet.")
+        self._set_status_text("See terminal for dot-phrase commands.")
 
     def start(self) -> None:
         event_mask = self.CGEventMaskBit(self.kCGEventKeyDown)

@@ -49,6 +49,11 @@ PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nY
 PYTHONPATH=src python -m cognitiveio.cli phrase-add ".TS1" "For these issues, complete an in-depth root cause analysis of the top 4 causes arranged by probability. For each cause, generate 3 mitigations arranged by probability. Lastly, reassess all outputs and develop the mitigation plan." --profile email_docs --confidence 0.97
 PYTHONPATH=src python -m cognitiveio.cli phrase-list --profile email_docs
 ```
+7. Validate explainability and secret inventory commands:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli explain-last
+PYTHONPATH=src python -m cognitiveio.cli required-secrets --limit 100
+```
 
 ## 3. macOS Permissions and Runtime
 
@@ -65,6 +70,11 @@ PYTHONPATH=src python -m cognitiveio.cli run --mode auto
 - `CIO` while running normally
 - `CIO-P` in protected context
 - `CIO-II` when panic hotkey is engaged
+4. Validate menu actions:
+- `Pause Suggestions` / `Resume Suggestions`
+- `Explain Last Decision`
+- `Show Required Secrets`
+- `Manage Dot-Phrases`
 
 ## 4. Hotkey and Profile Checks
 

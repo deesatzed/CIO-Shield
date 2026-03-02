@@ -148,6 +148,27 @@ def test_runtime_trust_circuit_breaker_blocks_after_negative_spike(tmp_path: Pat
     )
     assert blocked.action == "do_nothing"
     assert "trust cooldown" in blocked.message.lower()
+    assert runtime.trust_cooldown_remaining_seconds() > 0
+    snapshot = runtime.last_decision_snapshot()
+    assert snapshot.get("reason_tag") == "trust_circuit_breaker"
+    assert int(snapshot.get("trust_cooldown_remaining_seconds", 0)) > 0
+
+
+def test_runtime_last_decision_snapshot_persists_to_disk(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(
+        runtime.process_event(RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400))
+    )
+    assert out.action in {"suggest", "do_nothing"}
+
+    snapshot = runtime.last_decision_snapshot()
+    assert snapshot.get("token") == "teh"
+    assert "reason_tag" in snapshot
+    assert runtime.settings.report_dir.joinpath("latest_decision.json").exists()
+
+    runtime._last_decision = {}
+    loaded = runtime.last_decision_snapshot()
+    assert loaded.get("token") == "teh"
 
 
 def test_runtime_candidate_conflict_is_logged_as_blocked(tmp_path: Path):

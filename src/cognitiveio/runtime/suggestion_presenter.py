@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 from cognitiveio.runtime.ax_geometry import AXCaretLocator
 
@@ -43,21 +43,86 @@ def _default_state_text() -> str:
 class MenuBarStateIndicator:
     """Always-visible menu bar status indicator for safety state."""
 
-    def __init__(self):
+    def __init__(self, callbacks: Optional[Dict[str, Callable[[], None]]] = None):
         from Cocoa import (
             NSMenu,
             NSMenuItem,
+            NSObject,
             NSStatusBar,
             NSVariableStatusItemLength,
         )
+        import objc
 
         self._status_bar = NSStatusBar.systemStatusBar()
         self._item = self._status_bar.statusItemWithLength_(NSVariableStatusItemLength)
 
+        class _ActionHandler(NSObject):
+            def initWithCallbacks_(self, cb_map):  # noqa: N802
+                self = objc.super(_ActionHandler, self).init()
+                if self is None:
+                    return None
+                self._cb_map = cb_map or {}
+                return self
+
+            def togglePause_(self, _sender):  # noqa: N802
+                cb = self._cb_map.get("toggle_pause")
+                if cb:
+                    cb()
+
+            def explainLast_(self, _sender):  # noqa: N802
+                cb = self._cb_map.get("explain_last")
+                if cb:
+                    cb()
+
+            def showRequiredSecrets_(self, _sender):  # noqa: N802
+                cb = self._cb_map.get("show_required_secrets")
+                if cb:
+                    cb()
+
+            def manageDotPhrases_(self, _sender):  # noqa: N802
+                cb = self._cb_map.get("manage_dot_phrases")
+                if cb:
+                    cb()
+
+        self._action_handler = _ActionHandler.alloc().initWithCallbacks_(callbacks or {})
         self._menu = NSMenu.alloc().init()
         self._state_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("", None, "")
         self._state_item.setEnabled_(False)
         self._menu.addItem_(self._state_item)
+        self._menu.addItem_(NSMenuItem.separatorItem())
+
+        self._pause_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Pause / Resume",
+            "togglePause:",
+            "",
+        )
+        self._pause_item.setTarget_(self._action_handler)
+        self._menu.addItem_(self._pause_item)
+
+        explain_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Explain Last Decision",
+            "explainLast:",
+            "",
+        )
+        explain_item.setTarget_(self._action_handler)
+        self._menu.addItem_(explain_item)
+
+        secrets_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Show Required Secrets",
+            "showRequiredSecrets:",
+            "",
+        )
+        secrets_item.setTarget_(self._action_handler)
+        self._menu.addItem_(secrets_item)
+
+        phrases_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Manage Dot-Phrases",
+            "manageDotPhrases:",
+            "",
+        )
+        phrases_item.setTarget_(self._action_handler)
+        self._menu.addItem_(phrases_item)
+
         self._item.setMenu_(self._menu)
 
         self.set_state("")
@@ -70,6 +135,8 @@ class MenuBarStateIndicator:
             button.setTitle_(title)
             button.setToolTip_(current_text)
         self._state_item.setTitle_(f"State: {current_text}")
+        paused = current_text.upper().startswith("PAUSED")
+        self._pause_item.setTitle_("Resume Suggestions" if paused else "Pause Suggestions")
 
     def close(self) -> None:
         self._status_bar.removeStatusItem_(self._item)
@@ -98,7 +165,7 @@ class ConsoleSuggestionPresenter(SuggestionPresenter):
 class CocoaOverlaySuggestionPresenter(SuggestionPresenter):
     """Minimal floating overlay near focused element or mouse pointer."""
 
-    def __init__(self):
+    def __init__(self, menu_callbacks: Optional[Dict[str, Callable[[], None]]] = None):
         from Cocoa import (
             NSBackingStoreBuffered,
             NSColor,
@@ -169,7 +236,7 @@ class CocoaOverlaySuggestionPresenter(SuggestionPresenter):
 
         self._menu_indicator: Optional[MenuBarStateIndicator]
         try:
-            self._menu_indicator = MenuBarStateIndicator()
+            self._menu_indicator = MenuBarStateIndicator(callbacks=menu_callbacks)
         except Exception:
             self._menu_indicator = None
 
@@ -212,10 +279,13 @@ class CocoaOverlaySuggestionPresenter(SuggestionPresenter):
             self._menu_indicator.set_state("")
 
 
-def create_suggestion_presenter(prefer_overlay: bool = True) -> SuggestionPresenter:
+def create_suggestion_presenter(
+    prefer_overlay: bool = True,
+    menu_callbacks: Optional[Dict[str, Callable[[], None]]] = None,
+) -> SuggestionPresenter:
     if prefer_overlay and mac_overlay_available():
         try:
-            return CocoaOverlaySuggestionPresenter()
+            return CocoaOverlaySuggestionPresenter(menu_callbacks=menu_callbacks)
         except Exception:
             return ConsoleSuggestionPresenter()
     return ConsoleSuggestionPresenter()

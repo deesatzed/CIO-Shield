@@ -111,6 +111,16 @@ def test_apply_replacement_fails_when_secret_alias_unresolved():
         app_name="Mail",
     )
     assert ok is False
+    assert applier.last_unresolved_aliases == ["MISSING_ALIAS"]
+    assert "Missing secret alias: MISSING_ALIAS" in applier.last_error
+
+
+def test_apply_replacement_fails_with_empty_source_text():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    ok = applier.apply_replacement(before="", after="value ", app_name="Mail")
+    assert ok is False
+    assert applier.last_error == "No source text to replace."
 
 
 def test_apply_replacement_registers_secret_alias(tmp_path: Path, monkeypatch):

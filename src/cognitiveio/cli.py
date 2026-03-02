@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 import json
 from pathlib import Path
 
@@ -335,6 +336,95 @@ def seed_language_assets():
         )
     finally:
         store.close()
+
+
+@app.command("required-secrets")
+def required_secrets(limit: int = typer.Option(100, help="Maximum aliases to display.")):
+    """List required secret aliases observed in suggestions/workflows."""
+    store, _settings = _get_store()
+    try:
+        rows = store.list_secret_aliases(limit=max(1, limit))
+        if not rows:
+            console.print("No secret aliases recorded yet.")
+            return
+
+        table = Table(title=f"Required Secret Aliases (count={len(rows)})")
+        table.add_column("Alias")
+        table.add_column("Usage")
+        table.add_column("Last Seen")
+        table.add_column("Description")
+
+        for row in rows:
+            ts = datetime.fromtimestamp(float(row["last_seen"])).isoformat(timespec="seconds")
+            table.add_row(
+                str(row["alias"]),
+                str(row["usage_count"]),
+                ts,
+                str(row["description"] or ""),
+            )
+        console.print(table)
+    finally:
+        store.close()
+
+
+@app.command("explain-last")
+def explain_last(json_output: bool = typer.Option(False, "--json", help="Print raw JSON snapshot.")):
+    """Explain the latest runtime decision from the local decision snapshot file."""
+    settings = settings_from_env()
+    snapshot_path = settings.report_dir / "latest_decision.json"
+    if not snapshot_path.exists():
+        console.print("No decision snapshot found. Run CIO-II and trigger at least one boundary event.")
+        raise typer.Exit(code=1)
+
+    try:
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        console.print(f"Failed to parse decision snapshot: {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if not isinstance(snapshot, dict):
+        console.print("Decision snapshot is invalid.")
+        raise typer.Exit(code=1)
+
+    if json_output:
+        console.print(json.dumps(snapshot, indent=2))
+        return
+
+    table = Table(title="Latest Decision Snapshot")
+    table.add_column("Field")
+    table.add_column("Value")
+    ordered_fields = [
+        "action",
+        "reason_tag",
+        "app_name",
+        "profile",
+        "token",
+        "idle_ms",
+        "typing_fast",
+        "trust_cooldown_remaining_seconds",
+    ]
+    for field in ordered_fields:
+        table.add_row(field, str(snapshot.get(field, "")))
+    candidates = snapshot.get("candidates", [])
+    table.add_row("candidates", str(len(candidates)) if isinstance(candidates, list) else "0")
+    console.print(table)
+
+    if isinstance(candidates, list) and candidates:
+        cand_table = Table(title="Top Candidate Preview")
+        cand_table.add_column("ID")
+        cand_table.add_column("Before")
+        cand_table.add_column("After")
+        cand_table.add_column("Confidence")
+        for cand in candidates:
+            if not isinstance(cand, dict):
+                continue
+            cand_table.add_row(
+                str(cand.get("id", "")),
+                str(cand.get("before", "")),
+                str(cand.get("after", "")),
+                f"{float(cand.get('confidence', 0.0)):.2f}",
+            )
+        console.print(cand_table)
 
 
 @app.command("phrase-add")

@@ -160,6 +160,13 @@ PYTHONPATH=src python -m cognitiveio.cli schema-check
 # Seed common phrase/concept assets
 PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
 
+# Explain latest runtime decision
+PYTHONPATH=src python -m cognitiveio.cli explain-last
+PYTHONPATH=src python -m cognitiveio.cli explain-last --json
+
+# Show required secret aliases registered from suggestions
+PYTHONPATH=src python -m cognitiveio.cli required-secrets --limit 100
+
 # Add/list/remove phrase expansions
 PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
 PYTHONPATH=src python -m cognitiveio.cli phrase-list --profile email_docs
@@ -195,10 +202,18 @@ export COGNITIVEIO_SECRET_WORK_PHONE='+1-555-555-1212'
 - `CIO`: running
 - `CIO-P`: protected mode active
 - `CIO-II`: paused
-2. Suggestion controls:
+2. Menu bar actions:
+- `Pause Suggestions` / `Resume Suggestions`: toggle panic mode
+- `Explain Last Decision`: prints action/reason/profile/token summary in terminal
+- `Show Required Secrets`: prints tracked alias names from local registry
+- `Manage Dot-Phrases`: prints quick CLI commands and current triggers
+3. Trust feedback:
+- if trust cooldown is active, status shows `Trust cooldown active (Ns)`
+4. Suggestion controls:
 - `Tab`: accept suggestion
 - `Esc`: dismiss suggestion
-3. Hotkeys (default):
+- unresolved secret alias on accept is fail-closed with a clear status/terminal message
+5. Hotkeys (default):
 - panic toggle: `ctrl+option+p`
 - undo: `ctrl+option+z`
 
@@ -246,6 +261,10 @@ export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 - run `delete-all --confirm`
 4. “I only want local behavior”:
 - leave Apple FM disabled (default)
+5. “Accept says missing secret alias”:
+- run `PYTHONPATH=src python -m cognitiveio.cli required-secrets`
+- set missing env vars like `COGNITIVEIO_SECRET_WORK_EMAIL=...`
+- retry accept
 
 ## Testing and Release Readiness
 ```bash
