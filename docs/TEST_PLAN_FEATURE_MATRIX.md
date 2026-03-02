@@ -17,7 +17,7 @@ Covered domains:
 |---|---|---|
 | E1 | macOS + `.[dev,mac]` | Full runtime: menu bar, hotkeys, native event tap, apply/undo behavior |
 | E2 | Headless local/CI (`.[dev]`) | Core logic, CLI, runtime flow, persistence, security checks |
-| E3 | Optional Apple FM enabled | Constrained arbiter checks and selector-only behavior |
+| E3 | Apple FM enabled and available | Constrained on-chip arbiter checks and selector-only behavior |
 
 ## 3. Feature Coverage Matrix
 
@@ -92,4 +92,3 @@ PYTHONPATH=src python -m cognitiveio.cli schema-check
 - [ ] macOS menu/hotkey manual QA complete
 - [ ] `explain-last` and `required-secrets` validated in CLI
 - [ ] privacy artifacts reviewed for redaction compliance
-

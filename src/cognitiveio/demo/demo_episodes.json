@@ -1,5 +1,6 @@
 {
   "settings_overrides": {
+    "apple_fm_enabled": false,
     "suggestion_min_confidence": 0.3,
     "candidate_conflict_max_gap": 0.25,
     "trust_circuit_negative_events": 2,

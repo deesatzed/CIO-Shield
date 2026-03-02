@@ -46,13 +46,14 @@ class Settings:
     auto_apply_enabled: bool = False
     auto_apply_min_confidence: float = 0.97
 
-    # Optional Apple FM arbiter (still gated by variant/availability at runtime).
-    apple_fm_enabled: bool = False
+    # Apple FM arbiter is the default secure on-device gray-zone selector.
+    apple_fm_enabled: bool = True
     apple_fm_gray_zone_low: float = 0.45
     apple_fm_gray_zone_high: float = 0.92
     apple_fm_timeout_seconds: float = 0.08  # 80ms contract (PRODUCT_CONTRACT.md).
-    apple_fm_ab_enabled: bool = True
-    apple_fm_variant: str = "A"  # A deterministic-only, B allows arbiter in gray-zone.
+    apple_fm_ab_enabled: bool = False
+    apple_fm_variant: str = "B"  # B enables secure gray-zone arbiter by default.
+    fm_required_for_gray_zone: bool = True
 
     # Safety defaults.
     fail_safe_unknown_profile: bool = True
@@ -94,9 +95,10 @@ class Settings:
 def settings_from_env() -> Settings:
     """Create settings with environment overrides for demo/ops usage."""
     s = Settings()
-    s.apple_fm_enabled = os.getenv("COGNITIVEIO_ENABLE_APPLE_FM", "0") == "1"
+    s.apple_fm_enabled = os.getenv("COGNITIVEIO_ENABLE_APPLE_FM", "1") == "1"
     s.auto_apply_enabled = os.getenv("COGNITIVEIO_ENABLE_SOFT_AUTO", "0") == "1"
-    s.apple_fm_ab_enabled = os.getenv("COGNITIVEIO_ENABLE_AB", "1") == "1"
+    s.apple_fm_ab_enabled = os.getenv("COGNITIVEIO_ENABLE_AB", "0") == "1"
+    s.fm_required_for_gray_zone = os.getenv("COGNITIVEIO_FM_REQUIRED_FOR_GRAY_ZONE", "1") == "1"
 
     panic_hotkey = os.getenv("COGNITIVEIO_PANIC_HOTKEY", "").strip()
     if panic_hotkey:

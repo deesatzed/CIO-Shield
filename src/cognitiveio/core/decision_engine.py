@@ -157,12 +157,13 @@ async def _decide_inner(
         metrics.inc("blocked", 1)
         return Decision("do_nothing", None, None, top.confidence, "candidate_conflict")
 
-    # Optional Apple FM arbiter in confidence gray-zone or candidate-conflict branch.
+    in_gray_zone = settings.apple_fm_gray_zone_low <= top.confidence <= settings.apple_fm_gray_zone_high
+    # Apple FM arbiter in confidence gray-zone or candidate-conflict branch.
     if (
         fm_available
         and (
             has_conflict
-            or settings.apple_fm_gray_zone_low <= top.confidence <= settings.apple_fm_gray_zone_high
+            or in_gray_zone
         )
     ):
         pkt = {
@@ -197,6 +198,17 @@ async def _decide_inner(
             metrics.inc("auto_applied", 1)
 
         return Decision(action, chosen.after, chosen.id, fm_d.confidence, fm_d.reason_tag)
+
+    # FM-first fail-closed rule for ambiguous gray-zone decisions.
+    if (
+        settings.apple_fm_enabled
+        and settings.apple_fm_variant.upper() == "B"
+        and settings.fm_required_for_gray_zone
+        and in_gray_zone
+        and not fm_available
+    ):
+        metrics.inc("blocked", 1)
+        return Decision("do_nothing", None, None, top.confidence, "fm_required_unavailable")
 
     if (
         tier == "auto"

@@ -10,11 +10,11 @@
 - Verdict: Acquitted.
 - Replacement path: JSONL append-only files.
 
-## `python-apple-fm-sdk` (optional)
+## `python-apple-fm-sdk` (core on-chip arbiter)
 - Charge: on-device arbiter in gray zone.
-- Verdict: Probationary (off by default).
+- Verdict: Required for full FM-first ambiguous-case handling.
 - Failure mode: unavailable or policy violation.
-- Replacement path: deterministic decision-only mode.
+- Replacement path: fail-closed `do_nothing` in gray-zone.
 
 ## `pyobjc` (future runtime adapter)
 - Charge: native macOS capture/apply hooks.

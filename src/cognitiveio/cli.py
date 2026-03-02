@@ -123,7 +123,8 @@ def run(
     runtime = AppRuntime(settings=settings, store=store)
     console.print(
         f"FM arbiter: enabled={settings.apple_fm_enabled} variant={settings.apple_fm_variant} "
-        f"(A=deterministic, B=arbiter-gray-zone)"
+        f"required_for_gray_zone={settings.fm_required_for_gray_zone} "
+        "(on-chip selector-only)"
     )
 
     selected_mode = mode.lower().strip()
@@ -276,7 +277,8 @@ def arbiter_status():
     console.print(
         f"apple_fm_enabled={settings.apple_fm_enabled} "
         f"apple_fm_variant={settings.apple_fm_variant} "
-        f"apple_fm_ab_enabled={settings.apple_fm_ab_enabled}"
+        f"apple_fm_ab_enabled={settings.apple_fm_ab_enabled} "
+        f"fm_required_for_gray_zone={settings.fm_required_for_gray_zone}"
     )
 
 

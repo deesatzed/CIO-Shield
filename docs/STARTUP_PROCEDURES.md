@@ -11,13 +11,13 @@ source .venv/bin/activate
 uv pip install -e ".[dev,mac]"
 ```
 
-Optional Apple FM path:
+Apple FM path (recommended for FM-first secure gray-zone decisions):
 ```bash
 uv pip install -e ..
 export COGNITIVEIO_ENABLE_APPLE_FM=1
 export COGNITIVEIO_ARB_VARIANT=B
 ```
-Use this when you want better precision in ambiguous gray-zone corrections. Apple FM remains constrained to selecting known candidates or `do_nothing`.
+Use this for on-chip gray-zone arbitration. Apple FM remains constrained to selecting known candidates or `do_nothing`.
 
 ## 2. First-Run Safety Validation
 

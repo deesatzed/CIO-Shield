@@ -31,9 +31,10 @@ Deliverables:
 - [x] Decay stale patterns over time.
 - [ ] Keep all learning local and encrypted-at-rest compatible.
 
-## Sprint 4: Optional FM Arbiter + Proof
-- [x] Keep FM path OFF by default.
-- [x] Use AB gate (`A` deterministic, `B` gray-zone arbiter).
+## Sprint 4: FM-First Arbiter + Proof
+- [x] Make FM path ON by default for gray-zone security.
+- [x] Default variant `B` (gray-zone arbiter) with AB disabled by default.
+- [x] Add fail-closed behavior when FM is required but unavailable.
 - [x] Enforce selector-only invariant tests (candidate id or null).
 - [x] Extend proof report with trust metrics trendline.
 

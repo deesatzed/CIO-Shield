@@ -12,9 +12,9 @@ Most people have seen the same failure pattern with writing tools:
 
 CIO-II is built to avoid that pattern while still helping with real writing flow, not just typos.
 
-## Main Benefit of the Optional Internal Apple FM LLM
+## Main Benefit of the Internal Apple FM On-Chip LLM
 
-Yes, this is still part of the architecture.
+Yes, this is a core part of the architecture.
 
 The primary benefit is improved precision in ambiguous gray-zone corrections:
 - deterministic logic produces candidate options
@@ -61,7 +61,7 @@ Applied changes are reversible with explicit undo records.
 ### 5) Privacy is auditable
 You can inspect local proof reports and privacy ledger events.
 
-### 6) Optional Apple FM path is constrained
+### 6) Apple FM path is constrained
 The arbiter can only choose from known local candidates or return do-nothing.
 It cannot invent replacement text.
 Its purpose is to improve ambiguous-case choice quality, not to increase intervention volume.

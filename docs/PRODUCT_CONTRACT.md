@@ -14,7 +14,7 @@ Build one macOS application that is predictably helpful, strictly local, and vis
 - Auditable privacy ledger with delete-all control.
 3. Not-autocorrect proof:
 - Unknown profile, code profile, and terminal profile default to do-nothing.
-- Apple FM is optional and selector-only from known candidates or do-nothing.
+- Apple FM on-chip arbiter is selector-only from known candidates or do-nothing.
 - Every applied change must have a reversible undo record.
 4. Local-only operation:
 - No cloud dependency for core runtime decisions.
@@ -25,12 +25,12 @@ Build one macOS application that is predictably helpful, strictly local, and vis
 2. Missing profile classification yields `do_nothing`.
 3. Candidate conflict without safe arbiter path yields `do_nothing`.
 4. Undo must target the exact recorded before/after pair.
-5. Any failure in optional FM path must fail safe to deterministic logic.
+5. Any FM unavailability/failure in gray-zone must fail closed to `do_nothing`.
 
 ## Latency Budget
 1. Decision path (deterministic): <= 5ms target.
 2. Overlay update: <= 16ms frame budget target.
-3. Optional FM arbiter timeout: <= 80ms, then `do_nothing`.
+3. FM arbiter timeout: <= 80ms, then `do_nothing`.
 4. No synchronous disk-heavy operations on hot keystroke path.
 
 ## Safety Controls

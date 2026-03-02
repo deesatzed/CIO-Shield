@@ -92,7 +92,11 @@ async def _fm_arbiter_call(
         f"Candidates: {[c.__dict__ for c in candidates]}"
     )
 
-    out = await session.respond(prompt, guide=fm.guide(_Out))
+    try:
+        # Newer SDKs use `generating`, older ones may still use guide().
+        out = await session.respond(prompt, generating=_Out)
+    except TypeError:
+        out = await session.respond(prompt, guide=fm.guide(_Out))
     action = getattr(out, "action", "do_nothing")
     chosen_candidate_id = getattr(out, "chosen_candidate_id", None)
     confidence = float(getattr(out, "confidence", 0.0))

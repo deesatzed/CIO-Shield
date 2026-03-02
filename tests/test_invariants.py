@@ -205,3 +205,27 @@ async def test_fm_variant_b_allows_arbiter(monkeypatch):
     assert d.replacement == "the"
     assert d.reason_tag == "fm_suggest"
     assert called["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_gray_zone_fails_closed_when_fm_required_and_unavailable(monkeypatch):
+    monkeypatch.setattr(de, "decide_with_apple_fm", None)
+    monkeypatch.setattr(de, "FMCandidate", None)
+
+    d = await decide(
+        ctx=AppContext(app_name="Mail"),
+        flags=RiskFlags(),
+        candidates=[Candidate(id="c1", before="teh", after="the", count=4, confidence=0.60)],
+        context_window=None,
+        metrics=Metrics(),
+        budget=BudgetState(now_ts=1.0),
+        settings=Settings(
+            apple_fm_enabled=True,
+            apple_fm_variant="B",
+            fm_required_for_gray_zone=True,
+            suggestion_min_confidence=0.50,
+        ),
+        user_prefs={},
+    )
+    assert d.action == "do_nothing"
+    assert d.reason_tag == "fm_required_unavailable"

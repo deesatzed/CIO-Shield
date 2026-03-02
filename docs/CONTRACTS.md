@@ -50,13 +50,13 @@ Failure conditions:
 - Catastrophic: undo changes wrong text.
 - Recovery: disable apply path and keep suggest-only.
 
-## Feature: Apple FM arbiter (optional)
+## Feature: Apple FM arbiter (on-chip core)
 Goal:
 - Improve gray-zone decisions without invented replacements.
 
 Constraints:
 - Selector-only: candidate id from allowed set or null.
-- Off by default.
+- Fail-closed in gray-zone if unavailable.
 
 Output:
 - structured arbiter decision schema.

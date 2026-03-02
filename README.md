@@ -9,8 +9,8 @@ It is now also more than typo cleanup:
 - concept normalization (`api` -> `Application Programming Interface` where appropriate)
 - secure secret-alias replacement (`{{SECRET:NAME}}`) with provider-backed resolution, rotation support, and redacted logs
 
-## Main Benefit of the Optional Internal Apple FM LLM
-Yes, this is still a core advantage when enabled.
+## Main Benefit of the Internal Apple FM On-Chip LLM
+Yes, this is a core architectural advantage.
 
 The main benefit is better decisions in ambiguous gray-zone cases:
 - deterministic rules surface candidate options
@@ -20,7 +20,7 @@ The main benefit is better decisions in ambiguous gray-zone cases:
 Practical outcome:
 - fewer wrong interventions than aggressive autocorrect
 - higher accept-rate and lower dismiss/undo rate on borderline cases
-- no freeform text invention and no forced cloud dependency in core mode
+- no freeform text invention and no cloud dependency for arbitration
 
 ## What Problem It Solves
 If you type a lot every day, small errors add up:
@@ -70,8 +70,8 @@ This project is for Mac users who:
 1. Default mode is `suggest-only`, not silent replacement.
 2. Unknown profile => `do_nothing`.
 3. Code/terminal profile => `do_nothing`.
-4. Candidate ambiguity => `do_nothing` unless optional safe arbiter path is enabled.
-5. Optional Apple FM path is selector-only:
+4. Candidate ambiguity => on-chip FM selector decides, or fail-safe `do_nothing`.
+5. Apple FM path is selector-only:
 - can choose from provided candidates
 - or return `do_nothing`
 - cannot invent replacement text
@@ -115,11 +115,12 @@ source .venv/bin/activate
 uv pip install -e ".[dev,mac]"
 ```
 
-Optional Apple FM (still off by default):
+Apple FM SDK for on-chip arbiter integration:
 ```bash
 # install local python-apple-fm-sdk from parent repo
 uv pip install -e ..
 ```
+If unavailable, CIO-II remains fail-safe and blocks ambiguous gray-zone interventions.
 
 ## First 10 Minutes (New User Walkthrough)
 1. Run deterministic demo:
@@ -234,8 +235,10 @@ export COGNITIVEIO_SECRET_WORK_PHONE='+1-555-555-1212'
 ## Runtime Defaults
 - `suggest_only = true`
 - `auto_apply_enabled = false`
-- `apple_fm_enabled = false`
-- `apple_fm_variant` is AB-assigned (`A` or `B`) unless forced via `COGNITIVEIO_ARB_VARIANT`
+- `apple_fm_enabled = true`
+- `apple_fm_variant = B` by default
+- `apple_fm_ab_enabled = false` by default
+- `fm_required_for_gray_zone = true` (fail-closed if FM arbiter unavailable in gray-zone)
 - unknown/code/terminal profiles default to `do_nothing`
 
 ## Environment Variables You May Actually Use
@@ -243,11 +246,14 @@ export COGNITIVEIO_SECRET_WORK_PHONE='+1-555-555-1212'
 # Change local data location
 export COGNITIVEIO_HOME=/path/to/local/dir
 
-# Enable optional Apple FM arbiter
-export COGNITIVEIO_ENABLE_APPLE_FM=1
+# Disable Apple FM arbiter (deterministic-only fallback mode)
+export COGNITIVEIO_ENABLE_APPLE_FM=0
 
 # Force FM variant A or B
 export COGNITIVEIO_ARB_VARIANT=B
+
+# Require FM for gray-zone decisions (default = 1)
+export COGNITIVEIO_FM_REQUIRED_FOR_GRAY_ZONE=1
 
 # Override hotkeys
 export COGNITIVEIO_PANIC_HOTKEY=ctrl+option+p
@@ -273,12 +279,16 @@ export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 - grant Accessibility permission in macOS settings for your terminal/python process
 3. “I want a clean reset”:
 - run `delete-all --confirm`
-4. “I only want local behavior”:
-- leave Apple FM disabled (default)
+4. “I want deterministic-only fallback mode”:
+- set `COGNITIVEIO_ENABLE_APPLE_FM=0`
 5. “Accept says missing secret alias”:
 - run `PYTHONPATH=src python -m cognitiveio.cli required-secrets`
 - set missing env vars like `COGNITIVEIO_SECRET_WORK_EMAIL=...`
 - retry accept
+6. “Too many do-nothing outcomes in ambiguous cases”:
+- ensure Apple FM SDK is installed and available
+- run `PYTHONPATH=src python -m cognitiveio.cli arbiter-status`
+- confirm `apple_fm_enabled=True` and `fm_required_for_gray_zone=True`
 
 ## Testing and Release Readiness
 ```bash

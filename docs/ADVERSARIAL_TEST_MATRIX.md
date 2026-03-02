@@ -19,5 +19,5 @@
 
 ## Chaos checks (planned)
 - datastore unavailable for 60s
-- dependency break in optional FM adapter
+- dependency break in on-chip FM adapter
 - 100x event rate burst in runtime queue
