@@ -13,6 +13,12 @@ uv pip install -e ".[dev,mac]"
 
 Apple FM path (recommended for FM-first secure gray-zone decisions):
 ```bash
+# clone locally if you do not already have the SDK repo:
+git clone https://github.com/apple/python-apple-fm-sdk
+
+# install from cloned folder:
+uv pip install -e ./python-apple-fm-sdk
+
 # if sdk repo is sibling of CIO-II:
 uv pip install -e ../python-apple-fm-sdk
 

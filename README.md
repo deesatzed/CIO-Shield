@@ -126,6 +126,12 @@ uv pip install -e ".[dev,mac]"
 
 Apple FM SDK for on-chip arbiter integration (builds local bindings):
 ```bash
+# clone locally if you do not already have the SDK repo:
+git clone https://github.com/apple/python-apple-fm-sdk
+
+# install from cloned folder:
+uv pip install -e ./python-apple-fm-sdk
+
 # if sdk repo is sibling of CIO-II:
 uv pip install -e ../python-apple-fm-sdk
 
@@ -310,6 +316,9 @@ export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 - verify `xcodebuild -version` is `26.0+`
 - verify `xcode-select -p` points to `/Applications/Xcode.app/Contents/Developer`
 - if details show `sdk_import_error:*`, run:
+  `git clone https://github.com/apple/python-apple-fm-sdk`
+  `uv pip install -e ./python-apple-fm-sdk`
+  or
   `uv pip install -e ../python-apple-fm-sdk`
   or `uv pip install -e /absolute/path/to/python-apple-fm-sdk`
 4. “I want a clean reset”:
