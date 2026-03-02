@@ -337,5 +337,91 @@ def seed_language_assets():
         store.close()
 
 
+@app.command("phrase-add")
+def phrase_add(
+    trigger: str = typer.Argument(..., help="Trigger text, e.g. .meW"),
+    expansion: str = typer.Argument(..., help="Expanded output text."),
+    profile: str = typer.Option("email_docs", help="Context profile: email_docs, chat, or empty."),
+    confidence: float = typer.Option(0.95, help="Initial confidence 0.0-1.0"),
+):
+    """Add or update a context-aware phrase expansion."""
+    if not trigger.strip():
+        console.print("Trigger cannot be empty.")
+        raise typer.Exit(code=1)
+    if not expansion.strip():
+        console.print("Expansion cannot be empty.")
+        raise typer.Exit(code=1)
+
+    c = max(0.01, min(1.0, confidence))
+    p = profile.strip()
+
+    store, _settings = _get_store()
+    try:
+        store.upsert_phrase_pattern(
+            phrase_before=trigger,
+            phrase_after=expansion,
+            profile=p,
+            confidence=c,
+        )
+        console.print(
+            f"Saved phrase: trigger='{trigger}' profile='{p or '*'}' confidence={c:.2f}"
+        )
+    finally:
+        store.close()
+
+
+@app.command("phrase-list")
+def phrase_list(
+    profile: str = typer.Option("", help="Optional profile filter."),
+    limit: int = typer.Option(100, help="Maximum rows to show."),
+):
+    """List configured phrase expansions."""
+    store, _settings = _get_store()
+    try:
+        rows = store.list_phrase_patterns(profile=profile.strip(), limit=max(1, limit))
+        if not rows:
+            console.print("No phrase patterns found.")
+            return
+
+        table = Table(title=f"Phrase Patterns (count={len(rows)})")
+        table.add_column("Trigger")
+        table.add_column("Expansion")
+        table.add_column("Profile")
+        table.add_column("Confidence")
+        table.add_column("Frequency")
+
+        for row in rows:
+            table.add_row(
+                str(row["before"]),
+                str(row["after"]),
+                str(row["profile"] or "*"),
+                f"{float(row['confidence']):.2f}",
+                str(row["frequency"]),
+            )
+        console.print(table)
+    finally:
+        store.close()
+
+
+@app.command("phrase-remove")
+def phrase_remove(
+    trigger: str = typer.Argument(..., help="Trigger text to remove."),
+    profile: str = typer.Option("email_docs", help="Profile for scoped removal."),
+    all_profiles: bool = typer.Option(False, "--all-profiles", help="Remove across all profiles."),
+):
+    """Remove phrase expansions by trigger (profile-scoped by default)."""
+    p = "" if all_profiles else profile.strip()
+    store, _settings = _get_store()
+    try:
+        removed = store.delete_phrase_pattern(phrase_before=trigger, profile=p)
+        if removed <= 0:
+            console.print("No matching phrase patterns removed.")
+            raise typer.Exit(code=1)
+        scope = "*" if all_profiles else (p or "*")
+        console.print(f"Removed {removed} phrase pattern(s) for trigger='{trigger}' profile='{scope}'.")
+    finally:
+        store.close()
+
+
 if __name__ == "__main__":
     app()

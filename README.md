@@ -160,9 +160,35 @@ PYTHONPATH=src python -m cognitiveio.cli schema-check
 # Seed common phrase/concept assets
 PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
 
+# Add/list/remove phrase expansions
+PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
+PYTHONPATH=src python -m cognitiveio.cli phrase-list --profile email_docs
+PYTHONPATH=src python -m cognitiveio.cli phrase-remove ".meW" --profile email_docs
+
 # Delete all local CIO-II data
 PYTHONPATH=src python -m cognitiveio.cli delete-all --confirm
 ```
+
+## Dot-Phrase Examples
+1. Work signature in email/docs context:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
+```
+
+2. Prompt scaffold for technical analysis:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli phrase-add ".TS1" "For these issues, complete an in-depth root cause analysis of the top 4 causes arranged by probability. For each cause, generate 3 mitigations arranged by probability. Lastly, reassess all outputs and develop the mitigation plan." --profile email_docs --confidence 0.97
+```
+
+3. Secret aliases for signature fields:
+```bash
+export COGNITIVEIO_SECRET_WORK_EMAIL='you@company.com'
+export COGNITIVEIO_SECRET_WORK_PHONE='+1-555-555-1212'
+```
+
+4. Use:
+- Type `.meW` or `.TS1` followed by a boundary (space/enter/punctuation).
+- Press `Tab` to accept or `Esc` to dismiss.
 
 ## Native macOS UX and Controls
 1. Menu bar states:

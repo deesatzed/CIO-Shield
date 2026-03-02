@@ -43,6 +43,12 @@ PYTHONPATH=src python -m cognitiveio.cli health-card
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
 ```
+6. Add dot-phrase examples:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
+PYTHONPATH=src python -m cognitiveio.cli phrase-add ".TS1" "For these issues, complete an in-depth root cause analysis of the top 4 causes arranged by probability. For each cause, generate 3 mitigations arranged by probability. Lastly, reassess all outputs and develop the mitigation plan." --profile email_docs --confidence 0.97
+PYTHONPATH=src python -m cognitiveio.cli phrase-list --profile email_docs
+```
 
 ## 3. macOS Permissions and Runtime
 

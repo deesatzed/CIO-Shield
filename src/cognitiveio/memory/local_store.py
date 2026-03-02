@@ -537,6 +537,65 @@ class LocalStore:
             )
         return out
 
+    def list_phrase_patterns(self, profile: str = "", limit: int = 100) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        if profile:
+            cur.execute(
+                """
+                SELECT id, phrase_before, phrase_after, profile, confidence, frequency
+                FROM phrase_patterns
+                WHERE profile=?
+                ORDER BY profile ASC, phrase_before ASC, confidence DESC
+                LIMIT ?
+                """,
+                (profile, limit),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, phrase_before, phrase_after, profile, confidence, frequency
+                FROM phrase_patterns
+                ORDER BY profile ASC, phrase_before ASC, confidence DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+
+        out: List[Dict[str, Any]] = []
+        for row in cur.fetchall():
+            out.append(
+                {
+                    "id": int(row["id"]),
+                    "before": str(row["phrase_before"]),
+                    "after": str(row["phrase_after"]),
+                    "profile": str(row["profile"] or ""),
+                    "confidence": float(row["confidence"] or 0.1),
+                    "frequency": int(row["frequency"] or 1),
+                }
+            )
+        return out
+
+    def delete_phrase_pattern(self, phrase_before: str, profile: str = "") -> int:
+        cur = self.conn.cursor()
+        if profile:
+            cur.execute(
+                """
+                DELETE FROM phrase_patterns
+                WHERE lower(phrase_before)=lower(?) AND profile=?
+                """,
+                (phrase_before, profile),
+            )
+        else:
+            cur.execute(
+                """
+                DELETE FROM phrase_patterns
+                WHERE lower(phrase_before)=lower(?)
+                """,
+                (phrase_before,),
+            )
+        self.conn.commit()
+        return int(cur.rowcount or 0)
+
     def upsert_concept(
         self,
         canonical: str,

@@ -78,6 +78,10 @@ You press `Tab` to accept or `Esc` to dismiss.
 You type `asap` in an email context.  
 CIO-II can suggest `as soon as possible`, but still requires acceptance by default.
 
+### Example: Dot-phrases for repeated writing blocks
+You configure `.meW` for your work signature and `.TS1` for a technical analysis scaffold.  
+In email/docs context, CIO-II can expand those patterns when you intentionally trigger them.
+
 ### Example: Concept clarity in documentation
 You type `api` in docs/email context.  
 CIO-II can offer `Application Programming Interface` when confidence is high.
