@@ -21,6 +21,7 @@ from cognitiveio.evidence.report_generator import (
 from cognitiveio.memory.language_assets import seed_common_language_assets
 from cognitiveio.memory.local_store import LocalStore
 from cognitiveio.policy.risk_scoring import RiskFlags
+from cognitiveio.platform_requirements import evaluate_platform_requirements
 from cognitiveio.runtime.app_runtime import AppRuntime, RuntimeEvent
 from cognitiveio.runtime.mac_bridge import MacRuntimeBridge, mac_runtime_available
 from cognitiveio.security import CompositeSecretProvider, EnvSecretProvider, SecretResolver
@@ -112,10 +113,24 @@ def _run_headless_loop(runtime: AppRuntime, settings, store: LocalStore, app_nam
         console.print(out.message)
 
 
+def _render_requirements_report(report) -> None:
+    table = Table(title="Platform Requirements")
+    table.add_column("Check")
+    table.add_column("Required")
+    table.add_column("Current")
+    table.add_column("Status")
+    table.add_column("Details")
+    for row in report.checks:
+        status = "PASS" if row.passed else "FAIL"
+        table.add_row(row.name, row.required, row.current, status, row.details)
+    console.print(table)
+
+
 @app.command()
 def run(
     mode: str = typer.Option("auto", help="Run mode: auto, mac, or headless."),
     app_name: str = typer.Option("Mail", help="Simulated active app for headless mode."),
+    skip_preflight: bool = typer.Option(False, "--skip-preflight", help="Skip platform requirement checks."),
 ):
     """Run local runtime in macOS event-tap mode or headless mode."""
     settings = settings_from_env()
@@ -135,6 +150,13 @@ def run(
     use_mac = selected_mode == "mac" or (selected_mode == "auto" and mac_runtime_available())
 
     try:
+        if use_mac and not skip_preflight:
+            preflight_report = evaluate_platform_requirements()
+            _render_requirements_report(preflight_report)
+            if not preflight_report.passed:
+                console.print("Platform requirements failed. Fix the FAIL rows or use --skip-preflight.")
+                raise typer.Exit(code=1)
+
         if use_mac:
             if not mac_runtime_available():
                 console.print("PyObjC is not available; cannot run in mac mode.")
@@ -280,6 +302,20 @@ def arbiter_status():
         f"apple_fm_ab_enabled={settings.apple_fm_ab_enabled} "
         f"fm_required_for_gray_zone={settings.fm_required_for_gray_zone}"
     )
+
+
+@app.command("requirements-check")
+def requirements_check(
+    strict: bool = typer.Option(True, "--strict/--no-strict", help="Exit non-zero when requirements fail."),
+):
+    """Check Apple chip/macOS/Xcode and on-chip FM runtime requirements."""
+    report = evaluate_platform_requirements()
+    _render_requirements_report(report)
+    if report.passed:
+        console.print("All platform requirements are satisfied.")
+        return
+    if strict:
+        raise typer.Exit(code=1)
 
 
 @app.command("delete-all")

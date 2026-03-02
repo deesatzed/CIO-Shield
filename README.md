@@ -103,9 +103,12 @@ This project is for Mac users who:
 ## Installation (Recommended: `uv`)
 
 ### Requirements
-- macOS
+- Apple Silicon Mac (`arm64`)
+- macOS `26.0+`
+- Full Xcode `26.0+` (not only Command Line Tools)
 - Python 3.11+
 - `uv` installed
+- Apple Intelligence enabled (for on-chip FM runtime availability)
 
 ### Setup
 ```bash
@@ -127,19 +130,23 @@ If unavailable, CIO-II remains fail-safe and blocks ambiguous gray-zone interven
 ```bash
 ./run_demo.sh
 ```
-2. Print proof report:
+2. Verify platform requirements:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli requirements-check
+```
+3. Print proof report:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli proof-report
 ```
-3. Print health card:
+4. Print health card:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli health-card
 ```
-4. View privacy ledger:
+5. View privacy ledger:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
 ```
-5. Try native macOS mode:
+6. Try native macOS mode:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli run --mode mac
 ```
@@ -150,10 +157,15 @@ PYTHONPATH=src python -m cognitiveio.cli run --mode mac
 ./run.sh
 
 # Auto mode (falls back to headless if mac event tap is unavailable)
+# Runs platform preflight checks by default.
 PYTHONPATH=src python -m cognitiveio.cli run --mode auto
 
 # Native macOS event-tap mode (strict)
+# Runs platform preflight checks by default.
 PYTHONPATH=src python -m cognitiveio.cli run --mode mac
+
+# Bypass preflight temporarily (not recommended)
+PYTHONPATH=src python -m cognitiveio.cli run --mode mac --skip-preflight
 
 # Demo mode
 ./run_demo.sh
@@ -168,6 +180,9 @@ PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --export-path ./ledger.j
 
 # FM arbiter status
 PYTHONPATH=src python -m cognitiveio.cli arbiter-status
+
+# Check Apple chip/macOS/Xcode/FM runtime requirements
+PYTHONPATH=src python -m cognitiveio.cli requirements-check
 
 # Schema check
 PYTHONPATH=src python -m cognitiveio.cli schema-check
@@ -277,15 +292,20 @@ export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 - check trust cooldown is not active
 2. “mac mode doesn’t work”:
 - grant Accessibility permission in macOS settings for your terminal/python process
-3. “I want a clean reset”:
+3. “requirements-check fails”:
+- verify machine architecture is `arm64`
+- verify `sw_vers -productVersion` is `26.0+`
+- verify `xcodebuild -version` is `26.0+`
+- verify `xcode-select -p` points to `/Applications/Xcode.app/Contents/Developer`
+4. “I want a clean reset”:
 - run `delete-all --confirm`
-4. “I want deterministic-only fallback mode”:
+5. “I want deterministic-only fallback mode”:
 - set `COGNITIVEIO_ENABLE_APPLE_FM=0`
-5. “Accept says missing secret alias”:
+6. “Accept says missing secret alias”:
 - run `PYTHONPATH=src python -m cognitiveio.cli required-secrets`
 - set missing env vars like `COGNITIVEIO_SECRET_WORK_EMAIL=...`
 - retry accept
-6. “Too many do-nothing outcomes in ambiguous cases”:
+7. “Too many do-nothing outcomes in ambiguous cases”:
 - ensure Apple FM SDK is installed and available
 - run `PYTHONPATH=src python -m cognitiveio.cli arbiter-status`
 - confirm `apple_fm_enabled=True` and `fm_required_for_gray_zone=True`

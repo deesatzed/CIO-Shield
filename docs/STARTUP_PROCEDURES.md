@@ -25,32 +25,36 @@ Use this for on-chip gray-zone arbitration. Apple FM remains constrained to sele
 ```bash
 ./run_demo.sh
 ```
-2. Confirm demo includes:
+2. Validate platform requirements:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli requirements-check
+```
+3. Confirm demo includes:
 - Protected mode blocked event
 - Suggest-only acceptance
 - No code-profile intervention
 - Candidate-conflict guard event
 - Trust circuit breaker cooldown event
 - Undo event
-3. Print proof report:
+4. Print proof report:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli proof-report
 ```
-4. Print health card:
+5. Print health card:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli health-card
 ```
-5. Seed common language assets:
+6. Seed common language assets:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
 ```
-6. Add dot-phrase examples:
+7. Add dot-phrase examples:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
 PYTHONPATH=src python -m cognitiveio.cli phrase-add ".TS1" "For these issues, complete an in-depth root cause analysis of the top 4 causes arranged by probability. For each cause, generate 3 mitigations arranged by probability. Lastly, reassess all outputs and develop the mitigation plan." --profile email_docs --confidence 0.97
 PYTHONPATH=src python -m cognitiveio.cli phrase-list --profile email_docs
 ```
-7. Validate explainability and secret inventory commands:
+8. Validate explainability and secret inventory commands:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli explain-last
 PYTHONPATH=src python -m cognitiveio.cli required-secrets --limit 100
@@ -66,6 +70,7 @@ For safer default behavior, use auto mode:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli run --mode auto
 ```
+Both run commands execute platform preflight checks by default. Use `--skip-preflight` only for temporary diagnostics.
 2. In macOS `System Settings -> Privacy & Security -> Accessibility`, allow Terminal/iTerm/Python host process.
 3. Validate status indicator behavior:
 - `CIO` while running normally

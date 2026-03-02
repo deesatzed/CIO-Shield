@@ -9,6 +9,7 @@ For complete per-feature coverage and release sign-off mapping, see:
 Run full suite:
 ```bash
 cd /Volumes/WS4TB/CIO-II
+PYTHONPATH=src python -m cognitiveio.cli requirements-check
 pytest -q
 ./verify-mitigations.sh
 ```

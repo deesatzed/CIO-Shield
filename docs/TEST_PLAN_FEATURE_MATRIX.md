@@ -23,6 +23,7 @@ Covered domains:
 
 | Feature ID | Feature | Test Type | Environment | Commands / Procedure | Pass Criteria | Evidence Artifact |
 |---|---|---|---|---|---|---|
+| F00 | Platform preflight (chip/macOS/Xcode/FM) | Integration | E1 | `PYTHONPATH=src python -m cognitiveio.cli requirements-check` | All requirement rows PASS or command exits non-zero | CLI table output |
 | F01 | Typo suggestion at safe boundaries | Unit + Integration | E2 | `PYTHONPATH=src pytest -q tests/test_runtime_flow.py::test_runtime_suggest_accept_and_undo` | Suggestion appears only with boundary + idle threshold | Pytest output |
 | F02 | Suggest-only default mode | Unit | E2 | `PYTHONPATH=src pytest -q tests/test_runtime_flow.py::test_runtime_suggest_accept_and_undo` + verify default config values | No silent replacement unless explicit auto-apply decision path | Pytest output + config snapshot |
 | F03 | Accept / dismiss controls | Integration + Manual | E1/E2 | Headless: run `PYTHONPATH=src python -m cognitiveio.cli run --mode headless`, use `/accept` and `/dismiss`; macOS: `Tab` / `Esc` | Correct state transitions and ledger event outcomes | Runtime logs + ledger rows |
@@ -48,6 +49,7 @@ Covered domains:
 
 1. Static quality gate:
 ```bash
+PYTHONPATH=src python -m cognitiveio.cli requirements-check
 PYTHONPATH=src ruff check src tests
 PYTHONPATH=src mypy src
 ```
