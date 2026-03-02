@@ -23,6 +23,11 @@ The primary benefit is improved precision in ambiguous gray-zone corrections:
 
 This is not about generating text. It is about making fewer wrong correction decisions in borderline cases while preserving the same safety and reversibility model.
 
+Security thesis (the breakthrough):
+- on-device inference (no cloud dependency for arbitration)
+- selector-only output (candidate ID or `do_nothing`, never freeform replacement text)
+- reversible interventions + auditable local proof reports and privacy ledger
+
 ## The Problem We Care About
 
 People who type all day in email, documents, chat, and notes do not need flashy generation most of the time.

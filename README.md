@@ -1,10 +1,13 @@
 # CIO-II
 
-CIO-II is a local-first typing assistant for macOS that is designed to be helpful without taking control away from you.
+CIO-II is an on-device, trust-first writing assistant for macOS.
 
-It is intentionally **not autocorrect**.
+It uses the internal Apple FM on-chip model as a **constrained arbiter**:
+- deterministic logic proposes known safe candidates
+- Apple FM can select a candidate ID or choose `do_nothing`
+- the model never generates replacement text
 
-It is now also more than typo cleanup:
+It is intentionally **not autocorrect** and more than typo cleanup:
 - context-aware phrase expansion (`asap` -> `as soon as possible` in writing contexts)
 - concept normalization (`api` -> `Application Programming Interface` where appropriate)
 - secure secret-alias replacement (`{{SECRET:NAME}}`) with provider-backed resolution, rotation support, and redacted logs
@@ -21,6 +24,7 @@ Practical outcome:
 - fewer wrong interventions than aggressive autocorrect
 - higher accept-rate and lower dismiss/undo rate on borderline cases
 - no freeform text invention and no cloud dependency for arbitration
+- measurable trust outcomes via local proof reports and privacy ledger
 
 ## What Problem It Solves
 If you type a lot every day, small errors add up:
@@ -105,10 +109,12 @@ This project is for Mac users who:
 ### Requirements
 - Apple Silicon Mac (`arm64`)
 - macOS `26.0+`
-- Full Xcode `26.0+` (not only Command Line Tools)
 - Python 3.11+
 - `uv` installed
 - Apple Intelligence enabled (for on-chip FM runtime availability)
+
+### Build Requirements (Apple FM SDK)
+- Full Xcode `26.0+` (not only Command Line Tools)
 
 ### Setup
 ```bash
@@ -118,7 +124,7 @@ source .venv/bin/activate
 uv pip install -e ".[dev,mac]"
 ```
 
-Apple FM SDK for on-chip arbiter integration:
+Apple FM SDK for on-chip arbiter integration (builds local bindings):
 ```bash
 # install local python-apple-fm-sdk from parent repo
 uv pip install -e ..

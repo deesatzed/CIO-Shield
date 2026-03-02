@@ -30,6 +30,7 @@ run_shell_step() {
   fi
 }
 
+run_shell_step "platform preflight" 'if [[ "$(uname -s)" == "Darwin" ]]; then PYTHONPATH=src python -m cognitiveio.cli requirements-check; else PYTHONPATH=src python -m cognitiveio.cli requirements-check --no-strict >/tmp/cio_requirements.out; rg -q "Platform Requirements" /tmp/cio_requirements.out; fi'
 run_step "ruff" ruff check src tests
 run_step "mypy" mypy src
 run_step "pytest" pytest -q
