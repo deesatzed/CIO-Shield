@@ -126,6 +126,19 @@ def _render_requirements_report(report) -> None:
     console.print(table)
 
 
+def _print_requirements_remediation(report) -> None:
+    failed = {row.name: row for row in report.checks if not row.passed}
+
+    fm_row = failed.get("Apple FM runtime availability")
+    if fm_row and fm_row.details.startswith("sdk_import_error:"):
+        console.print("Apple FM SDK is not installed in the active virtual environment.")
+        console.print("Install one of the following:")
+        console.print("  uv pip install -e ../python-apple-fm-sdk")
+        console.print("  uv pip install -e /absolute/path/to/python-apple-fm-sdk")
+        console.print("Then verify:")
+        console.print('  python -c "import apple_fm_sdk; print(apple_fm_sdk.__file__)"')
+
+
 @app.command()
 def run(
     mode: str = typer.Option("auto", help="Run mode: auto, mac, or headless."),
@@ -154,6 +167,7 @@ def run(
             preflight_report = evaluate_platform_requirements()
             _render_requirements_report(preflight_report)
             if not preflight_report.passed:
+                _print_requirements_remediation(preflight_report)
                 console.print("Platform requirements failed. Fix the FAIL rows or use --skip-preflight.")
                 raise typer.Exit(code=1)
 
@@ -314,6 +328,7 @@ def requirements_check(
     if report.passed:
         console.print("All platform requirements are satisfied.")
         return
+    _print_requirements_remediation(report)
     if strict:
         raise typer.Exit(code=1)
 

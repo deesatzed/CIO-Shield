@@ -13,7 +13,15 @@ uv pip install -e ".[dev,mac]"
 
 Apple FM path (recommended for FM-first secure gray-zone decisions):
 ```bash
-uv pip install -e ..
+# if sdk repo is sibling of CIO-II:
+uv pip install -e ../python-apple-fm-sdk
+
+# or install from any absolute local path:
+uv pip install -e /absolute/path/to/python-apple-fm-sdk
+
+# verify sdk import in active venv:
+python -c "import apple_fm_sdk; print(apple_fm_sdk.__file__)"
+
 export COGNITIVEIO_ENABLE_APPLE_FM=1
 export COGNITIVEIO_ARB_VARIANT=B
 ```

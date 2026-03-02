@@ -126,8 +126,14 @@ uv pip install -e ".[dev,mac]"
 
 Apple FM SDK for on-chip arbiter integration (builds local bindings):
 ```bash
-# install local python-apple-fm-sdk from parent repo
-uv pip install -e ..
+# if sdk repo is sibling of CIO-II:
+uv pip install -e ../python-apple-fm-sdk
+
+# or install from any absolute local path:
+uv pip install -e /absolute/path/to/python-apple-fm-sdk
+
+# verify sdk import in active venv:
+python -c "import apple_fm_sdk; print(apple_fm_sdk.__file__)"
 ```
 If unavailable, CIO-II remains fail-safe and blocks ambiguous gray-zone interventions.
 
@@ -303,6 +309,9 @@ export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 - verify `sw_vers -productVersion` is `26.0+`
 - verify `xcodebuild -version` is `26.0+`
 - verify `xcode-select -p` points to `/Applications/Xcode.app/Contents/Developer`
+- if details show `sdk_import_error:*`, run:
+  `uv pip install -e ../python-apple-fm-sdk`
+  or `uv pip install -e /absolute/path/to/python-apple-fm-sdk`
 4. “I want a clean reset”:
 - run `delete-all --confirm`
 5. “I want deterministic-only fallback mode”:
