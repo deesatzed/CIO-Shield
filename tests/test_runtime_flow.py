@@ -98,7 +98,7 @@ def test_runtime_dismiss_feedback_reduces_repeat(tmp_path: Path):
     asyncio.run(runtime.process_event(RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)))
     asyncio.run(runtime.process_event(RuntimeEvent(kind="dismiss")))
     asyncio.run(runtime.process_event(RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)))
-    out = asyncio.run(runtime.process_event(RuntimeEvent(kind="dismiss")))
+    asyncio.run(runtime.process_event(RuntimeEvent(kind="dismiss")))
 
     # After repeated dismissals the runtime enters cooldown and stops suggesting.
     blocked = asyncio.run(

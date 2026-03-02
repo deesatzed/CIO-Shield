@@ -5,7 +5,7 @@ This is the launch runbook for operating CIO-II safely and predictably on macOS.
 ## 1. Environment Setup
 
 ```bash
-cd /Users/o2satz/python-apple-fm-sdk/cioStart
+cd /Volumes/WS4TB/CIO-II
 uv venv .venv
 source .venv/bin/activate
 uv pip install -e ".[dev,mac]"
@@ -39,12 +39,20 @@ PYTHONPATH=src python -m cognitiveio.cli proof-report
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli health-card
 ```
+5. Seed common language assets:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
+```
 
 ## 3. macOS Permissions and Runtime
 
 1. Launch native mode:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli run --mode mac
+```
+For safer default behavior, use auto mode:
+```bash
+PYTHONPATH=src python -m cognitiveio.cli run --mode auto
 ```
 2. In macOS `System Settings -> Privacy & Security -> Accessibility`, allow Terminal/iTerm/Python host process.
 3. Validate status indicator behavior:
@@ -62,6 +70,9 @@ Optional overrides:
 ```bash
 export COGNITIVEIO_PANIC_HOTKEY=ctrl+option+p
 export COGNITIVEIO_UNDO_HOTKEY=ctrl+option+z
+export COGNITIVEIO_DB_ENCRYPTION=optional
+export COGNITIVEIO_DB_KEY_REF='{{SECRET:COGNITIVEIO_DB_KEY}}'
+export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 ```
 
 Profile expectations:

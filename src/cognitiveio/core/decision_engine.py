@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from cognitiveio.context.profiles import (
     AppContext,
@@ -146,7 +146,12 @@ async def _decide_inner(
 
     has_conflict = _has_candidate_conflict(candidates, settings)
     fm_variant_b = settings.apple_fm_variant.upper() == "B"
-    fm_available = settings.apple_fm_enabled and fm_variant_b and decide_with_apple_fm is not None and FMCandidate is not None
+    fm_available = (
+        settings.apple_fm_enabled
+        and fm_variant_b
+        and decide_with_apple_fm is not None
+        and FMCandidate is not None
+    )
 
     if has_conflict and not fm_available:
         metrics.inc("blocked", 1)
@@ -182,7 +187,7 @@ async def _decide_inner(
         if not chosen:
             return Decision("do_nothing", None, None, 0.0, "fm_chosen_not_found")
 
-        action = fm_d.action
+        action = cast(str, fm_d.action)
         if action == "auto_apply" and (settings.suggest_only or not settings.auto_apply_enabled):
             action = "suggest"
 

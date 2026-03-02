@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Deque, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional
 
 from cognitiveio.config import Settings
 from cognitiveio.context.profiles import AppContext, classify_profile
@@ -68,6 +68,27 @@ class AppRuntime:
         self._cooldown_until_ts = 0.0
         self._negative_event_ts: Deque[float] = deque(maxlen=512)
         self._trust_pause_until_ts = 0.0
+
+    @staticmethod
+    def _merge_candidates(*candidate_groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        merged: Dict[tuple[str, str], Dict[str, Any]] = {}
+        for group in candidate_groups:
+            for cand in group:
+                before = str(cand.get("before", ""))
+                after = str(cand.get("after", ""))
+                key = (before.lower(), after.lower())
+                existing = merged.get(key)
+                if existing is None:
+                    merged[key] = dict(cand)
+                    continue
+                if float(cand.get("confidence", 0.0)) > float(existing.get("confidence", 0.0)):
+                    existing["confidence"] = cand.get("confidence", existing.get("confidence"))
+                    existing["id"] = cand.get("id", existing.get("id"))
+                existing["count"] = max(
+                    int(existing.get("count", 0)),
+                    int(cand.get("count", 0)),
+                )
+        return list(merged.values())
 
     @staticmethod
     def _now_ts() -> float:
@@ -189,7 +210,11 @@ class AppRuntime:
             reason="stored",
             app_name=rec.app_name,
             event_type="undo",
-            meta={"undo_record_id": rec.id, "before": rec.before, "after": rec.after},
+            meta={
+                "undo_record_id": rec.id,
+                "before_hash": self.store.hash_token(rec.before),
+                "after_hash": self.store.hash_token(rec.after),
+            },
         )
         return self._result("undo", f"Undo restored: {rec.after} -> {rec.before}")
 
@@ -227,15 +252,21 @@ class AppRuntime:
 
         self.protected_mode = False
 
-        candidates_raw = self.store.get_candidates_for_token(event.token)
+        ctx = AppContext(app_name=event.app_name)
+        profile = classify_profile(ctx)
+
+        typo_candidates = self.store.get_candidates_for_token(event.token)
+        phrase_candidates = self.store.get_phrase_candidates(event.token, profile=profile)
+        concept_candidates = self.store.get_concept_candidates(event.token, profile=profile)
+        candidates_raw = self._merge_candidates(typo_candidates, phrase_candidates, concept_candidates)
         if not candidates_raw:
             return self._result("do_nothing", "No local candidates.")
 
         candidates = [
             Candidate(
-                id=c["id"],
-                before=c["before"],
-                after=c["after"],
+                id=str(c["id"]),
+                before=str(c["before"]),
+                after=str(c["after"]),
                 count=int(c["count"]),
                 confidence=float(c["confidence"]),
             )
@@ -249,9 +280,6 @@ class AppRuntime:
             cooldown_until_ts=self._cooldown_until_ts,
             now_ts=now,
         )
-
-        ctx = AppContext(app_name=event.app_name)
-        profile = classify_profile(ctx)
 
         decision = await decide(
             ctx=ctx,

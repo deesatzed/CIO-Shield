@@ -4,6 +4,11 @@ CIO-II is a local-first typing assistant for macOS that is designed to be helpfu
 
 It is intentionally **not autocorrect**.
 
+It is now also more than typo cleanup:
+- context-aware phrase expansion (`asap` -> `as soon as possible` in writing contexts)
+- concept normalization (`api` -> `Application Programming Interface` where appropriate)
+- secure secret-alias replacement (`{{SECRET:NAME}}`) with provider-backed resolution, rotation support, and redacted logs
+
 ## What Problem It Solves
 If you type a lot every day, small errors add up:
 - repeated typos (`teh`, `recieve`, `wierd`)
@@ -58,6 +63,16 @@ This project is for Mac users who:
 - or return `do_nothing`
 - cannot invent replacement text
 
+## What Makes It More Than Autocomplete
+1. Phrase intelligence:
+- learns and serves reusable phrase patterns by context profile (email/docs/chat).
+2. Concept intelligence:
+- maps shorthand concepts to canonical terms safely (`mvp`, `api`, `sla`, etc.).
+3. Hybrid assistance:
+- suggest-first by default; optional auto-apply is tightly gated by confidence and safety policy.
+4. Secure token workflows:
+- supports alias-based insertion (`{{SECRET:...}}`) with provider lookup and no plaintext secret storage in ledger/report data.
+
 ## Safety and Privacy Model (Plain Language)
 1. Protected Mode:
 - If password field/excluded context is detected, CIO-II blocks action.
@@ -80,7 +95,7 @@ This project is for Mac users who:
 
 ### Setup
 ```bash
-cd /Users/o2satz/python-apple-fm-sdk/cioStart
+cd /Volumes/WS4TB/CIO-II
 uv venv .venv
 source .venv/bin/activate
 uv pip install -e ".[dev,mac]"
@@ -119,7 +134,10 @@ PYTHONPATH=src python -m cognitiveio.cli run --mode mac
 # Headless interactive mode
 ./run.sh
 
-# Native macOS event-tap mode
+# Auto mode (falls back to headless if mac event tap is unavailable)
+PYTHONPATH=src python -m cognitiveio.cli run --mode auto
+
+# Native macOS event-tap mode (strict)
 PYTHONPATH=src python -m cognitiveio.cli run --mode mac
 
 # Demo mode
@@ -135,6 +153,12 @@ PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --export-path ./ledger.j
 
 # FM arbiter status
 PYTHONPATH=src python -m cognitiveio.cli arbiter-status
+
+# Schema check
+PYTHONPATH=src python -m cognitiveio.cli schema-check
+
+# Seed common phrase/concept assets
+PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
 
 # Delete all local CIO-II data
 PYTHONPATH=src python -m cognitiveio.cli delete-all --confirm
@@ -156,7 +180,7 @@ PYTHONPATH=src python -m cognitiveio.cli delete-all --confirm
 - `suggest_only = true`
 - `auto_apply_enabled = false`
 - `apple_fm_enabled = false`
-- `apple_fm_variant = A` (deterministic default)
+- `apple_fm_variant` is AB-assigned (`A` or `B`) unless forced via `COGNITIVEIO_ARB_VARIANT`
 - unknown/code/terminal profiles default to `do_nothing`
 
 ## Environment Variables You May Actually Use
@@ -173,6 +197,15 @@ export COGNITIVEIO_ARB_VARIANT=B
 # Override hotkeys
 export COGNITIVEIO_PANIC_HOTKEY=ctrl+option+p
 export COGNITIVEIO_UNDO_HOTKEY=ctrl+option+z
+
+# Local store encryption mode: off|optional|required
+export COGNITIVEIO_DB_ENCRYPTION=optional
+
+# Optional db key alias reference (resolved from env or secret provider)
+export COGNITIVEIO_DB_KEY_REF='{{SECRET:COGNITIVEIO_DB_KEY}}'
+
+# Env-backed secret source example
+export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 ```
 
 ## Troubleshooting
@@ -194,6 +227,7 @@ pytest -q
 ./run_demo.sh
 PYTHONPATH=src python -m cognitiveio.cli proof-report
 PYTHONPATH=src python -m cognitiveio.cli health-card
+./verify-mitigations.sh
 ```
 
 ## Documentation Map
@@ -203,6 +237,7 @@ PYTHONPATH=src python -m cognitiveio.cli health-card
 - `docs/STARTUP_PROCEDURES.md`
 - `docs/TESTING_GUIDE.md`
 - `docs/DEMO_SCRIPT.md`
+- `docs/GIT_WORKFLOW.md`
 - `docs/BLOG_CIO_II_LAUNCH.md`
 - `docs/index.html`
 

@@ -1,0 +1,16 @@
+fix(Px): <task title> [T-XXX]
+
+Finding: F-XXX
+Report quote: "<paste exact quote>"
+
+Implementation:
+- <summary of code/config changes>
+
+Verification:
+- ruff check src tests
+- mypy src
+- pytest -q
+- ./verify-mitigations.sh
+
+Rollback:
+- <one-line rollback action>

@@ -24,17 +24,33 @@ def build_health_card(report: Dict[str, Any]) -> OrganismHealthCard:
     accept_rate = float(report.get("accept_rate", 0.0))
     blocked = int(report.get("blocked", 0))
     dismiss_rate = float(report.get("dismiss_rate", 0.0))
+    undo_rate = float(report.get("undo_rate", 0.0))
+    interruption_rate = float(report.get("interruption_rate_per_min", 0.0))
+    minutes = float(report.get("minutes", 0.0))
     trust_blocks = int(report.get("blocked_trust_circuit", 0))
     conflict_blocks = int(report.get("blocked_candidate_conflict", 0))
     protected_blocks = int(report.get("blocked_protected_context", 0))
 
-    sota_conf = min(
-        10.0,
-        max(1.0, 4.0 + accept_rate * 4.0 - dismiss_rate * 2.0 - (trust_blocks * 0.1)),
+    signal_quality = max(0.0, min(1.0, accept_rate - (dismiss_rate * 0.4) - (undo_rate * 0.3)))
+    safety_pressure = min(1.0, (trust_blocks * 0.15) + (conflict_blocks * 0.08))
+    activity_factor = min(1.0, minutes / 10.0) if minutes > 0 else 0.0
+
+    sota_conf = min(10.0, max(1.0, 4.5 + signal_quality * 4.5 - safety_pressure))
+    architecture_score = min(25.0, max(12.0, 15.0 + (protected_blocks > 0) * 4.0 + (blocked > 0) * 2.0))
+    evolution_readiness = min(5.0, max(1.0, 2.2 + signal_quality * 2.2 + (activity_factor * 0.6)))
+    complexity_budget_used = min(
+        100,
+        max(
+            20,
+            int(
+                35
+                + (dismiss_rate * 25.0)
+                + (undo_rate * 20.0)
+                + (min(interruption_rate, 12.0) * 1.5)
+                + (trust_blocks * 3)
+            ),
+        ),
     )
-    architecture_score = 20.0 if blocked > 0 else 17.0
-    evolution_readiness = 3.8
-    complexity_budget_used = 72
 
     ethical_risk = "Low" if protected_blocks > 0 else "Medium"
     weakest_organ = "Pattern confidence calibration" if (trust_blocks > 0 or conflict_blocks > 0) else "macOS capture adapter integration"

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 from datetime import datetime
 from hashlib import sha256
 import math
@@ -9,18 +8,55 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Dict, List, Optional
 
+from cognitiveio.security.redaction import redact_payload
 
 class LocalStore:
     """Local-only SQLite store with privacy-first minimal schema."""
     STALE_DECAY_HALF_LIFE_DAYS = 45.0
 
-    def __init__(self, db_path: Path):
+    def __init__(
+        self,
+        db_path: Path,
+        *,
+        encryption_mode: str = "optional",
+        db_key: Optional[str] = None,
+    ):
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(self.db_path))
+        self.conn = self._connect(
+            str(self.db_path),
+            encryption_mode=encryption_mode,
+            db_key=db_key,
+        )
         self.conn.row_factory = sqlite3.Row
         self._init_schema()
         self._ensure_error_pattern_columns()
+
+    @staticmethod
+    def _connect(db_uri: str, *, encryption_mode: str, db_key: Optional[str]):
+        mode = (encryption_mode or "optional").lower()
+        if mode not in {"off", "optional", "required"}:
+            mode = "optional"
+
+        if mode == "off":
+            return sqlite3.connect(db_uri)
+
+        try:
+            import sqlcipher3
+        except Exception:
+            if mode == "required":
+                raise RuntimeError("Database encryption required but sqlcipher3 is unavailable.")
+            return sqlite3.connect(db_uri)
+
+        if not db_key:
+            if mode == "required":
+                raise RuntimeError("Database encryption required but no key was provided.")
+            return sqlite3.connect(db_uri)
+
+        conn = sqlcipher3.connect(db_uri)
+        escaped = db_key.replace("'", "''")
+        conn.execute(f"PRAGMA key='{escaped}'")
+        return conn
 
     def _init_schema(self) -> None:
         cur = self.conn.cursor()
@@ -60,8 +96,48 @@ class LocalStore:
                 report_json TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS secret_access_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts REAL NOT NULL,
+                alias TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                status TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS secret_alias_registry (
+                alias TEXT PRIMARY KEY,
+                description TEXT DEFAULT '',
+                usage_count INTEGER DEFAULT 0,
+                first_seen REAL NOT NULL,
+                last_seen REAL NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS phrase_patterns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                phrase_before TEXT NOT NULL,
+                phrase_after TEXT NOT NULL,
+                profile TEXT DEFAULT '',
+                confidence REAL DEFAULT 0.1,
+                frequency INTEGER DEFAULT 1,
+                UNIQUE(phrase_before, phrase_after, profile)
+            );
+
+            CREATE TABLE IF NOT EXISTS concept_lexicon (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                canonical TEXT NOT NULL,
+                synonym TEXT NOT NULL,
+                domain TEXT DEFAULT '',
+                profile TEXT DEFAULT '',
+                confidence REAL DEFAULT 0.88,
+                UNIQUE(canonical, synonym, profile)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_patterns_lookup ON error_patterns(error_pattern, confidence DESC);
             CREATE INDEX IF NOT EXISTS idx_privacy_ts ON privacy_events(ts DESC);
+            CREATE INDEX IF NOT EXISTS idx_secret_access_ts ON secret_access_events(ts DESC);
+            CREATE INDEX IF NOT EXISTS idx_secret_alias_last_seen ON secret_alias_registry(last_seen DESC);
+            CREATE INDEX IF NOT EXISTS idx_phrase_lookup ON phrase_patterns(phrase_before, profile, confidence DESC);
+            CREATE INDEX IF NOT EXISTS idx_concept_lookup ON concept_lexicon(synonym, profile, confidence DESC);
             """
         )
         self.conn.commit()
@@ -130,6 +206,60 @@ class LocalStore:
     @staticmethod
     def hash_token(token: str) -> str:
         return sha256(token.encode("utf-8")).hexdigest()[:16]
+
+    def log_secret_access(self, alias: str, provider: str, status: str) -> None:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO secret_access_events (ts, alias, provider, status)
+            VALUES (?, ?, ?, ?)
+            """,
+            (datetime.now().timestamp(), alias, provider, status),
+        )
+        self.conn.commit()
+
+    def register_secret_alias(self, alias: str, description: str = "") -> None:
+        now = datetime.now().timestamp()
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO secret_alias_registry (alias, description, usage_count, first_seen, last_seen)
+            VALUES (?, ?, 1, ?, ?)
+            ON CONFLICT(alias) DO UPDATE SET
+                usage_count=usage_count + 1,
+                description=CASE
+                    WHEN excluded.description != '' THEN excluded.description
+                    ELSE secret_alias_registry.description
+                END,
+                last_seen=excluded.last_seen
+            """,
+            (alias, description, now, now),
+        )
+        self.conn.commit()
+
+    def list_secret_aliases(self, limit: int = 100) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT alias, description, usage_count, first_seen, last_seen
+            FROM secret_alias_registry
+            ORDER BY last_seen DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        out: List[Dict[str, Any]] = []
+        for row in cur.fetchall():
+            out.append(
+                {
+                    "alias": str(row["alias"]),
+                    "description": str(row["description"] or ""),
+                    "usage_count": int(row["usage_count"] or 0),
+                    "first_seen": float(row["first_seen"] or 0.0),
+                    "last_seen": float(row["last_seen"] or 0.0),
+                }
+            )
+        return out
 
     def upsert_pattern(self, error: str, intended: str) -> None:
         cur = self.conn.cursor()
@@ -342,6 +472,117 @@ class LocalStore:
             for r in cur.fetchall()
         ]
 
+    def upsert_phrase_pattern(
+        self,
+        phrase_before: str,
+        phrase_after: str,
+        profile: str = "",
+        confidence: float = 0.1,
+    ) -> None:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, frequency, confidence
+            FROM phrase_patterns
+            WHERE lower(phrase_before)=lower(?) AND lower(phrase_after)=lower(?) AND profile=?
+            """,
+            (phrase_before, phrase_after, profile),
+        )
+        row = cur.fetchone()
+        if row:
+            freq = int(row["frequency"] or 0) + 1
+            conf = min(1.0, max(float(row["confidence"] or 0.1), confidence, freq / 10.0))
+            cur.execute(
+                """
+                UPDATE phrase_patterns
+                SET frequency=?, confidence=?
+                WHERE id=?
+                """,
+                (freq, conf, int(row["id"])),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO phrase_patterns
+                (phrase_before, phrase_after, profile, confidence, frequency)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (phrase_before, phrase_after, profile, confidence, 1),
+            )
+        self.conn.commit()
+
+    def get_phrase_candidates(self, phrase: str, profile: str = "", limit: int = 5) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, phrase_before, phrase_after, confidence, frequency, profile
+            FROM phrase_patterns
+            WHERE lower(phrase_before)=lower(?)
+              AND (profile='' OR profile=?)
+            ORDER BY confidence DESC, frequency DESC
+            LIMIT ?
+            """,
+            (phrase, profile, limit),
+        )
+        out: List[Dict[str, Any]] = []
+        for row in cur.fetchall():
+            out.append(
+                {
+                    "id": f"phrase:{row['id']}",
+                    "before": str(row["phrase_before"]),
+                    "after": str(row["phrase_after"]),
+                    "count": int(row["frequency"] or 1),
+                    "confidence": float(row["confidence"] or 0.1),
+                }
+            )
+        return out
+
+    def upsert_concept(
+        self,
+        canonical: str,
+        synonym: str,
+        domain: str = "",
+        profile: str = "",
+        confidence: float = 0.88,
+    ) -> None:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO concept_lexicon (canonical, synonym, domain, profile, confidence)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(canonical, synonym, profile)
+            DO UPDATE SET confidence=excluded.confidence
+            """,
+            (canonical, synonym, domain, profile, confidence),
+        )
+        self.conn.commit()
+
+    def get_concept_candidates(self, token: str, profile: str = "", limit: int = 5) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, canonical, synonym, confidence
+            FROM concept_lexicon
+            WHERE lower(synonym)=lower(?)
+              AND (profile='' OR profile=?)
+            ORDER BY confidence DESC
+            LIMIT ?
+            """,
+            (token, profile, limit),
+        )
+        out: List[Dict[str, Any]] = []
+        for row in cur.fetchall():
+            out.append(
+                {
+                    "id": f"concept:{row['id']}",
+                    "before": str(row["synonym"]),
+                    "after": str(row["canonical"]),
+                    "count": 1,
+                    "confidence": float(row["confidence"] or 0.88),
+                }
+            )
+        return out
+
     def get_pattern_state(self, before: str, after: str) -> Optional[Dict[str, Any]]:
         cur = self.conn.cursor()
         cur.execute(
@@ -377,6 +618,13 @@ class LocalStore:
         token_hash: str = "",
         meta: Optional[Dict[str, Any]] = None,
     ) -> None:
+        safe_reason = str(redact_payload(reason))
+        safe_app_name = str(redact_payload(app_name))
+        safe_profile = str(redact_payload(profile))
+        safe_event_type = str(redact_payload(event_type))
+        safe_token_hash = str(redact_payload(token_hash))
+        safe_meta = redact_payload(meta or {})
+
         cur = self.conn.cursor()
         cur.execute(
             """
@@ -387,12 +635,12 @@ class LocalStore:
             (
                 datetime.now().timestamp(),
                 kind,
-                reason,
-                app_name,
-                profile,
-                event_type,
-                token_hash,
-                json.dumps(meta or {}),
+                safe_reason,
+                safe_app_name,
+                safe_profile,
+                safe_event_type,
+                safe_token_hash,
+                json.dumps(safe_meta),
             ),
         )
         self.conn.commit()
@@ -419,19 +667,20 @@ class LocalStore:
         payload = {
             "version": "1.0",
             "exported_at": datetime.now().isoformat(),
-            "events": self.get_privacy_events(limit=10000),
+            "events": redact_payload(self.get_privacy_events(limit=10000)),
         }
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     def save_proof_report(self, report: Dict[str, Any]) -> None:
+        safe_report = redact_payload(report)
         cur = self.conn.cursor()
         cur.execute(
             """
             INSERT INTO proof_reports (ts, report_json)
             VALUES (?, ?)
             """,
-            (datetime.now().timestamp(), json.dumps(report)),
+            (datetime.now().timestamp(), json.dumps(safe_report)),
         )
         self.conn.commit()
 
@@ -475,6 +724,10 @@ class LocalStore:
         cur.execute("DELETE FROM error_patterns")
         cur.execute("DELETE FROM privacy_events")
         cur.execute("DELETE FROM proof_reports")
+        cur.execute("DELETE FROM secret_access_events")
+        cur.execute("DELETE FROM secret_alias_registry")
+        cur.execute("DELETE FROM phrase_patterns")
+        cur.execute("DELETE FROM concept_lexicon")
         self.conn.commit()
 
     def close(self) -> None:

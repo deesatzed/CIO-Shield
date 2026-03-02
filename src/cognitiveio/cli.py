@@ -17,18 +17,98 @@ from cognitiveio.evidence.report_generator import (
     generate_report_text,
     render_report_trend_text,
 )
+from cognitiveio.memory.language_assets import seed_common_language_assets
 from cognitiveio.memory.local_store import LocalStore
 from cognitiveio.policy.risk_scoring import RiskFlags
 from cognitiveio.runtime.app_runtime import AppRuntime, RuntimeEvent
 from cognitiveio.runtime.mac_bridge import MacRuntimeBridge, mac_runtime_available
+from cognitiveio.security import CompositeSecretProvider, EnvSecretProvider, SecretResolver
+from cognitiveio.security.aliases import contains_secret_alias
 
 app = typer.Typer(add_completion=False)
 console = Console()
 
 
+def _build_resolver(cache_ttl_seconds: float) -> SecretResolver:
+    provider = CompositeSecretProvider.from_iterable([EnvSecretProvider()])
+    return SecretResolver(provider=provider, cache_ttl_seconds=cache_ttl_seconds)
+
+
+def _resolve_secret_ref(raw_value: str, resolver: SecretResolver) -> str:
+    if not raw_value:
+        return ""
+    if not contains_secret_alias(raw_value):
+        return raw_value
+    resolved, unresolved = resolver.resolve_text(raw_value)
+    if unresolved:
+        return ""
+    return resolved
+
+
+def _build_store(settings) -> LocalStore:
+    resolver = _build_resolver(settings.secret_cache_ttl_seconds)
+    db_key = _resolve_secret_ref(settings.db_key_ref, resolver)
+    return LocalStore(
+        settings.db_path,
+        encryption_mode=settings.db_encryption_mode,
+        db_key=db_key or None,
+    )
+
+
 def _get_store() -> tuple[LocalStore, object]:
     settings = settings_from_env()
-    return LocalStore(settings.db_path), settings
+    return _build_store(settings), settings
+
+
+def _seed_headless_defaults(store: LocalStore) -> None:
+    store.upsert_pattern("teh", "the")
+    store.upsert_pattern("recieve", "receive")
+    store.upsert_pattern("wierd", "weird")
+    seed_common_language_assets(store)
+
+
+def _run_headless_loop(runtime: AppRuntime, settings, store: LocalStore, app_name: str) -> None:
+    console.print("[bold]CIO-II[/bold] local interactive headless mode")
+    console.print("Type one token/phrase at a boundary. Empty input exits.")
+    console.print("Commands: /panic, /undo, /accept, /dismiss")
+    _seed_headless_defaults(store)
+
+    while True:
+        token = input("token> ").strip()
+        if token == "":
+            break
+
+        if token == "/panic":
+            out = asyncio.run(runtime.process_event(RuntimeEvent(kind="panic")))
+            console.print(out.message)
+            continue
+        if token == "/undo":
+            out = asyncio.run(runtime.process_event(RuntimeEvent(kind="undo")))
+            console.print(out.message)
+            continue
+        if token == "/accept":
+            out = asyncio.run(runtime.process_event(RuntimeEvent(kind="accept")))
+            console.print(out.message)
+            continue
+        if token == "/dismiss":
+            out = asyncio.run(runtime.process_event(RuntimeEvent(kind="dismiss")))
+            console.print(out.message)
+            continue
+
+        out = asyncio.run(
+            runtime.process_event(
+                RuntimeEvent(
+                    kind="boundary",
+                    app_name=app_name,
+                    token=token,
+                    boundary=" ",
+                    idle_ms=settings.idle_pause_ms + 60,
+                    typing_fast=False,
+                    flags=RiskFlags(),
+                )
+            )
+        )
+        console.print(out.message)
 
 
 @app.command()
@@ -38,7 +118,7 @@ def run(
 ):
     """Run local runtime in macOS event-tap mode or headless mode."""
     settings = settings_from_env()
-    store = LocalStore(settings.db_path)
+    store = _build_store(settings)
     runtime = AppRuntime(settings=settings, store=store)
     console.print(
         f"FM arbiter: enabled={settings.apple_fm_enabled} variant={settings.apple_fm_variant} "
@@ -57,54 +137,16 @@ def run(
             if not mac_runtime_available():
                 console.print("PyObjC is not available; cannot run in mac mode.")
                 raise typer.Exit(code=1)
-            bridge = MacRuntimeBridge(runtime)
-            bridge.start()
+            try:
+                bridge = MacRuntimeBridge(runtime)
+                bridge.start()
+            except RuntimeError as exc:
+                if selected_mode == "mac":
+                    raise
+                console.print(f"mac mode unavailable ({exc}); falling back to headless.")
+                _run_headless_loop(runtime, settings, store, app_name)
         else:
-            console.print("[bold]CIO-II[/bold] local interactive headless mode")
-            console.print("Type one token at a time. Empty input exits.")
-            console.print("Commands: /panic, /undo, /accept, /dismiss")
-
-            while True:
-                token = input("token> ").strip()
-                if token == "":
-                    break
-
-                if token == "/panic":
-                    out = asyncio.run(runtime.process_event(RuntimeEvent(kind="panic")))
-                    console.print(out.message)
-                    continue
-                if token == "/undo":
-                    out = asyncio.run(runtime.process_event(RuntimeEvent(kind="undo")))
-                    console.print(out.message)
-                    continue
-                if token == "/accept":
-                    out = asyncio.run(runtime.process_event(RuntimeEvent(kind="accept")))
-                    console.print(out.message)
-                    continue
-                if token == "/dismiss":
-                    out = asyncio.run(runtime.process_event(RuntimeEvent(kind="dismiss")))
-                    console.print(out.message)
-                    continue
-
-                # Lightweight on-the-fly learning seed for demonstration.
-                if token.lower() in {"teh", "recieve", "wierd"}:
-                    mapping = {"teh": "the", "recieve": "receive", "wierd": "weird"}
-                    store.upsert_pattern(token, mapping[token.lower()])
-
-                out = asyncio.run(
-                    runtime.process_event(
-                        RuntimeEvent(
-                            kind="boundary",
-                            app_name=app_name,
-                            token=token,
-                            boundary=" ",
-                            idle_ms=settings.idle_pause_ms + 60,
-                            typing_fast=False,
-                            flags=RiskFlags(),
-                        )
-                    )
-                )
-                console.print(out.message)
+            _run_headless_loop(runtime, settings, store, app_name)
 
     finally:
         report = runtime.build_report()
@@ -248,6 +290,49 @@ def delete_all(confirm: bool = typer.Option(False, "--confirm", help="Required c
     try:
         store.delete_all()
         console.print("Deleted all local CIO-II data.")
+    finally:
+        store.close()
+
+
+@app.command("schema-check")
+def schema_check():
+    """Validate required local schema objects exist."""
+    store, _settings = _get_store()
+    try:
+        cur = store.conn.cursor()
+        cur.execute(
+            """
+            SELECT name FROM sqlite_master WHERE type='table'
+            """
+        )
+        existing = {str(r["name"]) for r in cur.fetchall()}
+        required = {
+            "error_patterns",
+            "privacy_events",
+            "proof_reports",
+            "secret_access_events",
+            "secret_alias_registry",
+            "phrase_patterns",
+            "concept_lexicon",
+        }
+        missing = sorted(required - existing)
+        if missing:
+            console.print(f"Missing schema tables: {', '.join(missing)}")
+            raise typer.Exit(code=1)
+        console.print("Schema check passed.")
+    finally:
+        store.close()
+
+
+@app.command("seed-language-assets")
+def seed_language_assets():
+    """Seed common phrase and concept library for context-aware assistance."""
+    store, _settings = _get_store()
+    try:
+        counts = seed_common_language_assets(store)
+        console.print(
+            f"Seeded language assets: phrases={counts['phrases']} concepts={counts['concepts']}"
+        )
     finally:
         store.close()
 

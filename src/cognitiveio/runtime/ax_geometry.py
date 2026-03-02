@@ -18,7 +18,7 @@ class AXCaretLocator:
         self._ax: Optional[Dict[str, Any]] = None
 
         try:
-            from ApplicationServices import (  # type: ignore
+            from ApplicationServices import (
                 AXUIElementCopyAttributeValue,
                 AXUIElementCopyParameterizedAttributeValue,
                 AXUIElementCreateSystemWide,

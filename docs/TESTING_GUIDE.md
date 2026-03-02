@@ -6,8 +6,9 @@ This guide covers automated and manual validation before release.
 
 Run full suite:
 ```bash
-cd /Users/o2satz/python-apple-fm-sdk/cioStart
+cd /Volumes/WS4TB/CIO-II
 pytest -q
+./verify-mitigations.sh
 ```
 
 Key covered areas:

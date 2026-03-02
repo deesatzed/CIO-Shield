@@ -45,7 +45,7 @@ class ProtectedContextDetector:
         self._detector_uncertain = False
 
         try:
-            from ApplicationServices import (  # type: ignore
+            from ApplicationServices import (
                 AXUIElementCopyAttributeValue,
                 AXUIElementCreateSystemWide,
                 kAXDescriptionAttribute,
@@ -92,7 +92,14 @@ class ProtectedContextDetector:
     def _is_password_field(self) -> bool:
         self._detector_uncertain = False
 
-        if not self._ax_available:
+        if (
+            not self._ax_available
+            or self._AXUIElementCreateSystemWide is None
+            or self._AXUIElementCopyAttributeValue is None
+            or self._kAXFocusedUIElementAttribute is None
+            or self._kAXRoleAttribute is None
+            or self._kAXDescriptionAttribute is None
+        ):
             return False
 
         try:

@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, cast
 
 try:
     import apple_fm_sdk as fm
 except Exception:
-    fm = None  # type: ignore
+    fm = None
 
 _log = logging.getLogger(__name__)
 
@@ -104,4 +104,4 @@ async def _fm_arbiter_call(
     if not validate_candidate_choice(chosen_candidate_id, allowed_ids):
         return ArbiterDecision("do_nothing", None, 0.0, "fm_violation_invalid_candidate_id")
 
-    return ArbiterDecision(action, chosen_candidate_id, confidence, reason_tag)
+    return ArbiterDecision(cast(Action, action), chosen_candidate_id, confidence, reason_tag)

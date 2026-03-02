@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  cio-ii:
+    build: .
+    image: cio-ii:local
+    environment:
+      - COGNITIVEIO_HOME=/data/.cognitiveio
+      - PYTHONPATH=/app/src
+    volumes:
+      - cio_data:/data
+    command: ["python", "-m", "cognitiveio.cli", "run", "--mode", "headless"]
+
+volumes:
+  cio_data:

@@ -4,6 +4,8 @@ import time
 from typing import Any, Dict, Optional, Tuple
 
 from cognitiveio.core.undo_stack import UndoRecord
+from cognitiveio.security.aliases import contains_secret_alias, extract_secret_aliases
+from cognitiveio.security.resolver import SecretResolver
 
 
 PASTE_PREFERRED_APPS = {
@@ -34,6 +36,17 @@ class MacTextApplier:
 
     def __init__(self, bridge: Any):
         self.bridge = bridge
+        self.resolver = SecretResolver(on_access=self._on_secret_access)
+
+    def _on_secret_access(self, alias: str, provider: str, status: str) -> None:
+        runtime = getattr(self.bridge, "runtime", None)
+        store = getattr(runtime, "store", None)
+        if store is None:
+            return
+        try:
+            store.log_secret_access(alias, provider, status)
+        except Exception:
+            return
 
     def _strategy_for_app(self, app_name: str) -> str:
         if app_name in PASTE_PREFERRED_APPS:
@@ -56,19 +69,36 @@ class MacTextApplier:
         if not before:
             return False
 
+        target_after = after
+        if contains_secret_alias(target_after):
+            runtime = getattr(self.bridge, "runtime", None)
+            store = getattr(runtime, "store", None)
+            aliases = extract_secret_aliases(target_after)
+            if store is not None:
+                for alias in aliases:
+                    try:
+                        store.register_secret_alias(alias)
+                    except Exception:
+                        pass
+            resolved_after, unresolved = self.resolver.resolve_text(target_after)
+            if unresolved:
+                # Fail closed when a required alias cannot be resolved.
+                return False
+            target_after = resolved_after
+
         self.bridge.synth_until_ts = time.time() + 0.35
         for _ in range(len(before)):
             self.bridge._post_keycode(51)
 
         strategy = self._strategy_for_app(app_name)
         if strategy == "pasteboard":
-            if self.bridge._paste_text(after):
+            if self.bridge._paste_text(target_after):
                 return True
-            return self.bridge._post_text(after)
+            return self.bridge._post_text(target_after)
 
-        if self.bridge._post_text(after):
+        if self.bridge._post_text(target_after):
             return True
-        return self.bridge._paste_text(after)
+        return self.bridge._paste_text(target_after)
 
     def _activate_bundle(self, bundle_id: Optional[str]) -> bool:
         if not bundle_id:

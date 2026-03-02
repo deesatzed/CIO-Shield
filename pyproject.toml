@@ -10,16 +10,16 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.6",
-  "rich>=13.7",
+  "rich>=13.5.2,<13.6",
   "typer>=0.12",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.0",
-  "pytest-asyncio>=0.23",
-  "ruff>=0.6",
-  "mypy>=1.10",
+  "pytest==8.4.1",
+  "pytest-asyncio==0.23.8",
+  "ruff==0.6.9",
+  "mypy==1.11.2",
 ]
 mac = [
   "pyobjc-core>=10.0",
@@ -45,6 +45,20 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+  "live_fm: tests that require an available Apple FM SDK/runtime",
+  "live_mac: tests that require macOS accessibility/event-tap environment",
+]
 
 [tool.ruff]
 line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["Cocoa", "Quartz", "apple_fm_sdk", "ApplicationServices", "sqlcipher3"]
+ignore_missing_imports = true

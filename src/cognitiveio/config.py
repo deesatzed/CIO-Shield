@@ -76,6 +76,9 @@ class Settings:
 
     # Local paths.
     app_home: Path = resolve_app_home()
+    db_encryption_mode: str = "optional"  # off | optional | required
+    db_key_ref: str = "{{SECRET:COGNITIVEIO_DB_KEY}}"
+    secret_cache_ttl_seconds: float = 60.0
 
     @property
     def db_path(self) -> Path:
@@ -106,6 +109,21 @@ def settings_from_env() -> Settings:
     variant_idle = os.getenv("COGNITIVEIO_IDLE_PAUSE_MS")
     if variant_idle and variant_idle.isdigit():
         s.idle_pause_ms = int(variant_idle)
+
+    db_mode = os.getenv("COGNITIVEIO_DB_ENCRYPTION", "").strip().lower()
+    if db_mode in {"off", "optional", "required"}:
+        s.db_encryption_mode = db_mode
+
+    db_key_ref = os.getenv("COGNITIVEIO_DB_KEY_REF", "").strip()
+    if db_key_ref:
+        s.db_key_ref = db_key_ref
+
+    cache_ttl = os.getenv("COGNITIVEIO_SECRET_CACHE_TTL_SECONDS", "").strip()
+    try:
+        if cache_ttl:
+            s.secret_cache_ttl_seconds = max(1.0, float(cache_ttl))
+    except ValueError:
+        pass
 
     forced_variant = os.getenv("COGNITIVEIO_ARB_VARIANT", "").strip().upper()
     if forced_variant in {"A", "B"}:

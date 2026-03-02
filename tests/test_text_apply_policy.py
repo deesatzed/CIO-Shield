@@ -1,6 +1,7 @@
-from types import SimpleNamespace
+from pathlib import Path
 
 from cognitiveio.core.undo_stack import UndoRecord
+from cognitiveio.memory.local_store import LocalStore
 from cognitiveio.runtime.text_apply import MacTextApplier
 
 
@@ -99,3 +100,37 @@ def test_native_activation_fallback_uses_command_z_activated():
 
     assert ok is True
     assert mode == "command_z_activated"
+
+
+def test_apply_replacement_fails_when_secret_alias_unresolved():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    ok = applier.apply_replacement(
+        before="token ",
+        after="{{SECRET:MISSING_ALIAS}} ",
+        app_name="Mail",
+    )
+    assert ok is False
+
+
+def test_apply_replacement_registers_secret_alias(tmp_path: Path, monkeypatch):
+    class _Runtime:
+        def __init__(self, store):
+            self.store = store
+
+    bridge = FakeBridge()
+    store = LocalStore(tmp_path / "text_apply_alias.db")
+    bridge.runtime = _Runtime(store)
+    monkeypatch.setenv("COGNITIVEIO_SECRET_TEST_API_KEY", "sk_live_demo")
+
+    applier = MacTextApplier(bridge)
+    ok = applier.apply_replacement(
+        before="token ",
+        after="{{SECRET:TEST_API_KEY}} ",
+        app_name="Mail",
+    )
+    assert ok is True
+    aliases = store.list_secret_aliases(limit=5)
+    assert aliases
+    assert aliases[0]["alias"] == "TEST_API_KEY"
+    store.close()

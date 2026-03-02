@@ -22,6 +22,8 @@ async def run_demo(settings: Settings) -> Dict[str, Any]:
             setattr(demo_settings, key, value)
 
     store = LocalStore(demo_settings.db_path)
+    # Keep demo deterministic across repeated runs.
+    store.delete_all()
     runtime = AppRuntime(settings=demo_settings, store=store)
 
     results = []
