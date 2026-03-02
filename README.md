@@ -9,6 +9,19 @@ It is now also more than typo cleanup:
 - concept normalization (`api` -> `Application Programming Interface` where appropriate)
 - secure secret-alias replacement (`{{SECRET:NAME}}`) with provider-backed resolution, rotation support, and redacted logs
 
+## Main Benefit of the Optional Internal Apple FM LLM
+Yes, this is still a core advantage when enabled.
+
+The main benefit is better decisions in ambiguous gray-zone cases:
+- deterministic rules surface candidate options
+- Apple FM can rank/select only from those known candidates
+- if confidence stays weak, it returns `do_nothing`
+
+Practical outcome:
+- fewer wrong interventions than aggressive autocorrect
+- higher accept-rate and lower dismiss/undo rate on borderline cases
+- no freeform text invention and no forced cloud dependency in core mode
+
 ## What Problem It Solves
 If you type a lot every day, small errors add up:
 - repeated typos (`teh`, `recieve`, `wierd`)
@@ -62,6 +75,7 @@ This project is for Mac users who:
 - can choose from provided candidates
 - or return `do_nothing`
 - cannot invent replacement text
+- is intended to improve ambiguous-case precision, not to generate text
 
 ## What Makes It More Than Autocomplete
 1. Phrase intelligence:

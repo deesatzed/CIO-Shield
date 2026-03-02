@@ -6,7 +6,7 @@
     <title>CIO-II | Intent-Preserving Typing Assistance for macOS</title>
     <meta
       name="description"
-      content="CIO-II is a local-first macOS typing copilot: suggest-only by default, hard privacy blocks, perfect undo, and optional constrained Apple FM arbitration."
+      content="CIO-II is a local-first macOS typing copilot: suggest-only by default, hard privacy blocks, perfect undo, and an optional internal Apple FM arbiter for ambiguous gray-zone decisions."
     />
     <style>
       :root {
@@ -201,7 +201,7 @@
       <h1>CIO-II</h1>
       <p class="lead">
         Intent-preserving typing assistance for macOS. Suggest-only by default, hard privacy
-        blocks, perfect undo, and optional constrained Apple FM arbitration.
+        blocks, perfect undo, and an optional internal Apple FM arbiter for ambiguous gray-zone corrections.
       </p>
       <p class="meta">Built for trust, reversibility, and auditable data minimization.</p>
 
@@ -216,6 +216,16 @@
       </div>
 
       <section class="grid">
+        <article class="card span-6">
+          <h2>Main Benefit of Apple FM</h2>
+          <ul>
+            <li>Improves ambiguous-case precision when deterministic confidence is borderline.</li>
+            <li>Can only select from known local candidates or return do nothing.</li>
+            <li>Reduces wrong interventions without turning CIO-II into freeform autocomplete.</li>
+            <li>Keeps core trust model: local-first, reversible, and safety-gated.</li>
+          </ul>
+        </article>
+
         <article class="card span-6">
           <h2>Why It Is Not Autocorrect</h2>
           <ul>

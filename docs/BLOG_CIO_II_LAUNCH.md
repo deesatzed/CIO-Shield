@@ -12,6 +12,17 @@ Most people have seen the same failure pattern with writing tools:
 
 CIO-II is built to avoid that pattern while still helping with real writing flow, not just typos.
 
+## Main Benefit of the Optional Internal Apple FM LLM
+
+Yes, this is still part of the architecture.
+
+The primary benefit is improved precision in ambiguous gray-zone corrections:
+- deterministic logic produces candidate options
+- Apple FM is used as a constrained selector on those options
+- it can also choose `do_nothing` when uncertainty remains
+
+This is not about generating text. It is about making fewer wrong correction decisions in borderline cases while preserving the same safety and reversibility model.
+
 ## The Problem We Care About
 
 People who type all day in email, documents, chat, and notes do not need flashy generation most of the time.
@@ -53,6 +64,7 @@ You can inspect local proof reports and privacy ledger events.
 ### 6) Optional Apple FM path is constrained
 The arbiter can only choose from known local candidates or return do-nothing.
 It cannot invent replacement text.
+Its purpose is to improve ambiguous-case choice quality, not to increase intervention volume.
 
 ### 7) Context-aware phrase and concept intelligence
 CIO-II is not just typo replacement:
