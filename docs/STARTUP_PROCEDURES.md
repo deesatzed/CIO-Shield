@@ -43,32 +43,36 @@ Use this for on-chip gray-zone arbitration. Apple FM remains constrained to sele
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli requirements-check
 ```
-3. Confirm demo includes:
+3. Run automated user-journey validation:
+```bash
+./validate-user-journey.sh
+```
+4. Confirm demo includes:
 - Protected mode blocked event
 - Suggest-only acceptance
 - No code-profile intervention
 - Candidate-conflict guard event
 - Trust circuit breaker cooldown event
 - Undo event
-4. Print proof report:
+5. Print proof report:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli proof-report
 ```
-5. Print health card:
+6. Print health card:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli health-card
 ```
-6. Seed common language assets:
+7. Seed common language assets:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
 ```
-7. Add dot-phrase examples:
+8. Add dot-phrase examples:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
 PYTHONPATH=src python -m cognitiveio.cli phrase-add ".TS1" "For these issues, complete an in-depth root cause analysis of the top 4 causes arranged by probability. For each cause, generate 3 mitigations arranged by probability. Lastly, reassess all outputs and develop the mitigation plan." --profile email_docs --confidence 0.97
 PYTHONPATH=src python -m cognitiveio.cli phrase-list --profile email_docs
 ```
-8. Validate explainability and secret inventory commands:
+9. Validate explainability and secret inventory commands:
 ```bash
 PYTHONPATH=src python -m cognitiveio.cli explain-last
 PYTHONPATH=src python -m cognitiveio.cli required-secrets --limit 100
@@ -136,8 +140,9 @@ PYTHONPATH=src python -m cognitiveio.cli delete-all --confirm
 ## 6. Pre-Launch Checklist (Before Twitter/X)
 
 1. `pytest -q` passes locally.
-2. `./run_demo.sh` output matches expected episodes.
-3. `proof-report` and `health-card` generate correctly.
-4. Protected mode and panic mode indicators verified in native mac mode.
-5. README, testing guide, and blog post are up to date.
-6. Repo pushed and publicly accessible on GitHub.
+2. `./validate-user-journey.sh` passes locally.
+3. `./run_demo.sh` output matches expected episodes.
+4. `proof-report` and `health-card` generate correctly.
+5. Protected mode and panic mode indicators verified in native mac mode.
+6. README, testing guide, and blog post are up to date.
+7. Repo pushed and publicly accessible on GitHub.

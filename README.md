@@ -340,6 +340,7 @@ export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 ```bash
 pytest -q
 ./run_demo.sh
+./validate-user-journey.sh
 PYTHONPATH=src python -m cognitiveio.cli proof-report
 PYTHONPATH=src python -m cognitiveio.cli health-card
 ./verify-mitigations.sh
@@ -354,6 +355,7 @@ PYTHONPATH=src python -m cognitiveio.cli health-card
 - `docs/DEMO_SCRIPT.md`
 - `docs/GIT_WORKFLOW.md`
 - `docs/TEST_PLAN_FEATURE_MATRIX.md`
+- `docs/REAL_WORLD_VALIDATION_PLAN.md`
 - `docs/BLOG_CIO_II_LAUNCH.md`
 - `docs/index.html`
 
