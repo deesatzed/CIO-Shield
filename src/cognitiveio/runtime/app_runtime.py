@@ -286,7 +286,7 @@ class AppRuntime:
 
     async def process_boundary_event(self, event: RuntimeEvent) -> RuntimeResult:
         now = self._now_ts()
-        profile = classify_profile(AppContext(app_name=event.app_name))
+        profile = classify_profile(AppContext(app_name=event.app_name, bundle_id=event.app_bundle_id))
         if self.paused:
             self.metrics.inc("blocked", 1)
             self.store.log_privacy_event(kind="blocked", reason="paused", app_name=event.app_name)
@@ -367,7 +367,7 @@ class AppRuntime:
             return self._result("do_nothing", "Protected Mode Active - no capture, no suggestions.")
 
         self.protected_mode = False
-        ctx = AppContext(app_name=event.app_name)
+        ctx = AppContext(app_name=event.app_name, bundle_id=event.app_bundle_id)
 
         typo_candidates = self.store.get_candidates_for_token(event.token)
         phrase_candidates = self.store.get_phrase_candidates(event.token, profile=profile)

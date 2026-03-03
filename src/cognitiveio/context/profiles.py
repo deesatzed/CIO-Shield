@@ -33,7 +33,33 @@ DEFAULT_PROFILE_MAP: Dict[str, str] = {
     "Discord": PROFILE_CHAT,
 }
 
+DEFAULT_BUNDLE_PROFILE_MAP: Dict[str, str] = {
+    "com.microsoft.VSCode": PROFILE_CODE,
+    "com.apple.dt.Xcode": PROFILE_CODE,
+    "com.jetbrains.pycharm": PROFILE_CODE,
+    "com.apple.Terminal": PROFILE_TERMINAL,
+    "com.googlecode.iterm2": PROFILE_TERMINAL,
+    "com.apple.mail": PROFILE_EMAIL_DOCS,
+    "com.microsoft.Outlook": PROFILE_EMAIL_DOCS,
+    "com.apple.Safari": PROFILE_EMAIL_DOCS,
+    "com.google.Chrome": PROFILE_EMAIL_DOCS,
+    "com.apple.Notes": PROFILE_EMAIL_DOCS,
+    "notion.id": PROFILE_EMAIL_DOCS,
+    "md.obsidian": PROFILE_EMAIL_DOCS,
+    "net.shinyfrog.bear": PROFILE_EMAIL_DOCS,
+    "com.tinyspeck.slackmacgap": PROFILE_CHAT,
+    "com.apple.MobileSMS": PROFILE_CHAT,
+    "com.hnc.Discord": PROFILE_CHAT,
+    "com.discordapp.Discord": PROFILE_CHAT,
+}
+
+
 def classify_profile(ctx: AppContext, overrides: Optional[Dict[str, str]] = None) -> str:
-    if overrides and ctx.app_name in overrides:
-        return overrides[ctx.app_name]
+    if overrides:
+        if ctx.bundle_id and ctx.bundle_id in overrides:
+            return overrides[ctx.bundle_id]
+        if ctx.app_name in overrides:
+            return overrides[ctx.app_name]
+    if ctx.bundle_id and ctx.bundle_id in DEFAULT_BUNDLE_PROFILE_MAP:
+        return DEFAULT_BUNDLE_PROFILE_MAP[ctx.bundle_id]
     return DEFAULT_PROFILE_MAP.get(ctx.app_name, PROFILE_UNKNOWN)

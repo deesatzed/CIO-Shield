@@ -11,6 +11,7 @@ __pycache__/
 .cognitiveio_test/
 *.sqlite
 *.db
+python-apple-fm-sdk/
 
 dist/
 build/

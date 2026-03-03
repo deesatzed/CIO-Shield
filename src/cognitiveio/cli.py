@@ -132,6 +132,9 @@ def _print_requirements_remediation(report) -> None:
     fm_row = failed.get("Apple FM runtime availability")
     if fm_row and fm_row.details.startswith("sdk_import_error:"):
         console.print("Apple FM SDK is not installed in the active virtual environment.")
+        console.print("Recommended:")
+        console.print("  ./bootstrap.sh")
+        console.print("Manual install options:")
         console.print("Install one of the following:")
         console.print("  git clone https://github.com/apple/python-apple-fm-sdk")
         console.print("  uv pip install -e ./python-apple-fm-sdk")

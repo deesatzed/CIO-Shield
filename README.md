@@ -119,12 +119,12 @@ This project is for Mac users who:
 ### Setup
 ```bash
 cd /Volumes/WS4TB/CIO-II
-uv venv .venv
-source .venv/bin/activate
-uv pip install -e ".[dev,mac]"
+./bootstrap.sh
 ```
 
-Apple FM SDK for on-chip arbiter integration (builds local bindings):
+`bootstrap.sh` creates `.venv`, installs CIO-II dependencies, installs `apple_fm_sdk` (cloning if needed), and runs `requirements-check`.
+
+Manual Apple FM SDK install for on-chip arbiter integration (builds local bindings):
 ```bash
 # clone locally if you do not already have the SDK repo:
 git clone https://github.com/apple/python-apple-fm-sdk
@@ -316,6 +316,8 @@ export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 - verify `xcodebuild -version` is `26.0+`
 - verify `xcode-select -p` points to `/Applications/Xcode.app/Contents/Developer`
 - if details show `sdk_import_error:*`, run:
+  `./bootstrap.sh`
+  or
   `git clone https://github.com/apple/python-apple-fm-sdk`
   `uv pip install -e ./python-apple-fm-sdk`
   or

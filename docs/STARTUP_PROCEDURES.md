@@ -6,10 +6,10 @@ This is the launch runbook for operating CIO-II safely and predictably on macOS.
 
 ```bash
 cd /Volumes/WS4TB/CIO-II
-uv venv .venv
-source .venv/bin/activate
-uv pip install -e ".[dev,mac]"
+./bootstrap.sh
 ```
+
+`bootstrap.sh` creates `.venv`, installs CIO-II dependencies, installs `apple_fm_sdk` (cloning if needed), and runs `requirements-check`.
 
 Apple FM path (recommended for FM-first secure gray-zone decisions):
 ```bash
