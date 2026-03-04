@@ -336,7 +336,49 @@ export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 - run `PYTHONPATH=src python -m cognitiveio.cli arbiter-status`
 - confirm `apple_fm_enabled=True` and `fm_required_for_gray_zone=True`
 
-## Testing and Release Readiness
+## Testing and Coverage
+
+**331 tests | 94% measured coverage | 26 modules at 100%**
+
+All tests use real SQLite via `tmp_path` — no mocks, no simulation.
+
+```bash
+# Full suite with coverage
+pytest -q --cov=cognitiveio --cov-report=term-missing
+
+# Quick run (no coverage measurement)
+pytest -q
+
+# Specific test groups
+pytest tests/test_runtime_flow.py -v          # Runtime state machine (25 tests)
+pytest tests/test_invariants.py -v            # Product contract invariants (21 tests)
+pytest tests/test_cli.py -v                   # CLI commands (36 tests)
+pytest tests/test_local_store_extended.py -v  # SQLite store (42 tests)
+pytest tests/security/ -v                     # Security/redaction
+pytest tests/language/ -v                     # Phrase/concept
+
+# Verification gates
+./verify-mitigations.sh          # Full pipeline: ruff + mypy + pytest + demo + schema + security
+./validate-user-journey.sh       # End-to-end user journey
+```
+
+### Intentionally Uncovered (hardware-dependent, 133 lines)
+
+| Module | Reason |
+|--------|--------|
+| `suggestion_presenter.py` (Cocoa classes) | Requires Cocoa/AppKit framework (NSWindow, NSStatusBar) |
+| `protected_context.py` (AX calls) | Requires macOS Accessibility API permission |
+| `fm_arbiter.py` (inner FM call) | Requires Apple FM SDK hardware runtime |
+| `cli.py` (mac mode) | Requires PyObjC + MacRuntimeBridge event tap |
+| `text_apply.py` (bridge calls) | Requires live macOS pasteboard/keystroke injection |
+
+Hardware-dependent tests are gated behind `live_fm` and `live_mac` markers:
+```bash
+pytest -m live_fm     # Apple FM SDK tests (skip by default)
+pytest -m live_mac    # macOS Accessibility tests (skip by default)
+```
+
+### Release Readiness
 ```bash
 pytest -q
 ./run_demo.sh

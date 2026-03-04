@@ -15,3 +15,15 @@ def test_seed_common_language_assets(tmp_path: Path):
     assert phrase
     assert concept
     store.close()
+
+
+def test_safe_float_valid():
+    from cognitiveio.memory.language_assets import _safe_float
+    assert _safe_float(0.5, 0.8) == 0.5
+    assert _safe_float("0.95", 0.8) == 0.95
+
+
+def test_safe_float_invalid_returns_default():
+    from cognitiveio.memory.language_assets import _safe_float
+    assert _safe_float("not_a_number", 0.88) == 0.88
+    assert _safe_float(None, 0.7) == 0.7

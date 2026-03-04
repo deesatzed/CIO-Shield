@@ -21,3 +21,21 @@ def test_classify_profile_prefers_bundle_override():
 def test_classify_profile_falls_back_to_unknown_when_no_match():
     ctx = AppContext(app_name="CustomApp", bundle_id="com.example.custom")
     assert classify_profile(ctx) == PROFILE_UNKNOWN
+
+
+# ── Extended coverage tests ────────────────────────────────────────
+
+def test_classify_profile_override_by_app_name():
+    ctx = AppContext(app_name="Mail")
+    overrides = {"Mail": PROFILE_CODE}
+    assert classify_profile(ctx, overrides=overrides) == PROFILE_CODE
+
+
+def test_classify_profile_no_bundle_no_override():
+    ctx = AppContext(app_name="Slack")
+    assert classify_profile(ctx) == "chat"
+
+
+def test_classify_profile_default_bundle_map():
+    ctx = AppContext(app_name="Localized", bundle_id="com.microsoft.VSCode")
+    assert classify_profile(ctx) == PROFILE_CODE

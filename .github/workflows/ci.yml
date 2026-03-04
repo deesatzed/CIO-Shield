@@ -33,7 +33,7 @@ jobs:
         run: mypy src
 
       - name: Tests
-        run: pytest -q
+        run: pytest -q --cov=cognitiveio --cov-report=term-missing
 
       - name: Demo smoke
         run: PYTHONPATH=src python -m cognitiveio.cli demo

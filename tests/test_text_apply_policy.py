@@ -144,3 +144,126 @@ def test_apply_replacement_registers_secret_alias(tmp_path: Path, monkeypatch):
     assert aliases
     assert aliases[0]["alias"] == "TEST_API_KEY"
     store.close()
+
+
+# ── Extended coverage tests ────────────────────────────────────────
+
+def test_strategy_for_paste_preferred_app():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    assert applier._strategy_for_app("Mail") == "pasteboard"
+    assert applier._strategy_for_app("Slack") == "pasteboard"
+    assert applier._strategy_for_app("Notes") == "pasteboard"
+    assert applier._strategy_for_app("UnknownApp") == "keystroke"
+
+
+def test_undo_policy_no_bundle_id():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    assert applier._undo_policy(None) == "native_first"
+    assert applier._undo_policy("") == "native_first"
+
+
+def test_undo_policy_manual_only_bundles():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    assert applier._undo_policy("com.microsoft.VSCode") == "manual_only"
+    assert applier._undo_policy("com.apple.Terminal") == "manual_only"
+
+
+def test_undo_policy_native_first_bundles():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    assert applier._undo_policy("com.apple.mail") == "native_first"
+    assert applier._undo_policy("com.tinyspeck.slackmacgap") == "native_first"
+
+
+def test_apply_replacement_pasteboard_path():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    ok = applier.apply_replacement(before="teh", after="the", app_name="Mail")
+    assert ok is True
+    assert any(a[0] == "paste" for a in bridge.actions)
+
+
+def test_apply_replacement_keystroke_path():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    ok = applier.apply_replacement(before="teh", after="the", app_name="UnknownApp")
+    assert ok is True
+    assert any(a[0] == "text" for a in bridge.actions)
+
+
+class FailingBridge(FakeBridge):
+    def _post_text(self, text):
+        return False
+
+    def _paste_text(self, text):
+        return False
+
+
+def test_apply_replacement_pasteboard_fallback_failure():
+    bridge = FailingBridge()
+    applier = MacTextApplier(bridge)
+    ok = applier.apply_replacement(before="teh", after="the", app_name="Mail")
+    assert ok is False
+    assert "Failed to apply" in applier.last_error
+
+
+def test_apply_replacement_keystroke_fallback_failure():
+    bridge = FailingBridge()
+    applier = MacTextApplier(bridge)
+    ok = applier.apply_replacement(before="teh", after="the", app_name="UnknownApp")
+    assert ok is False
+    assert "Failed to apply" in applier.last_error
+
+
+def test_on_secret_access_no_runtime():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    # Should not raise even without runtime
+    applier._on_secret_access("alias", "env", "resolved")
+
+
+def test_on_secret_access_no_store():
+    bridge = FakeBridge()
+    bridge.runtime = type("R", (), {"store": None})()
+    applier = MacTextApplier(bridge)
+    applier._on_secret_access("alias", "env", "resolved")
+
+
+def test_activate_bundle_no_bundle_id():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    assert applier._activate_bundle(None) is False
+    assert applier._activate_bundle("") is False
+
+
+def test_activate_bundle_unknown_bundle():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    assert applier._activate_bundle("com.nonexistent.app") is False
+
+
+def test_undo_record_native_same_bundle():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    rec = _record("com.apple.mail", pid=None)
+    ok, mode = applier.undo_record(
+        rec,
+        active_app={"name": "Mail", "bundle_id": "com.apple.mail", "pid": None},
+    )
+    assert ok is True
+    assert mode == "command_z_active"
+
+
+def test_undo_record_native_fallback_to_manual():
+    bridge = FakeBridge()
+    applier = MacTextApplier(bridge)
+    rec = _record("com.nonexistent.app", pid=100)
+    ok, mode = applier.undo_record(
+        rec,
+        active_app={"name": "Other", "bundle_id": "com.other", "pid": 200},
+    )
+    assert ok is True
+    assert mode == "manual_replace"

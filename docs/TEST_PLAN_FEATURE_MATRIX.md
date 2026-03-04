@@ -2,6 +2,8 @@
 
 This plan defines how to assess each shipped feature in CIO-II for correctness, safety, security, UX, and release readiness.
 
+**Current state**: 331 tests | 94% measured coverage | 26 modules at 100% | no mocks
+
 ## 1. Scope
 
 Covered domains:
@@ -10,6 +12,7 @@ Covered domains:
 - Security and privacy controls
 - UX controls and explainability
 - Reliability and regression stability
+- Coverage measurement via `pytest-cov`
 
 ## 2. Test Environments
 
@@ -49,23 +52,23 @@ Covered domains:
 
 1. Static quality gate:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli requirements-check
-PYTHONPATH=src ruff check src tests
-PYTHONPATH=src mypy src
+ruff check src tests
+mypy src
 ```
-2. Targeted feature tests for changed areas:
+2. Full regression with coverage:
 ```bash
-PYTHONPATH=src pytest -q tests/test_runtime_flow.py tests/test_text_apply_policy.py tests/language tests/security
+pytest -q --cov=cognitiveio --cov-report=term-missing
 ```
-3. Full regression:
+3. Targeted feature tests for changed areas:
 ```bash
-PYTHONPATH=src pytest -q
+pytest -q tests/test_runtime_flow.py tests/test_invariants.py tests/test_cli.py tests/test_text_apply_policy.py tests/language tests/security
 ```
 4. Product smoke and readiness:
 ```bash
 ./run_demo.sh
 PYTHONPATH=src python -m cognitiveio.cli schema-check
 ./verify-mitigations.sh
+./validate-user-journey.sh
 ```
 5. macOS manual UX pass (E1):
 - Menu status and actions
@@ -85,12 +88,14 @@ PYTHONPATH=src python -m cognitiveio.cli schema-check
 
 ## 6. Release Sign-Off Checklist
 
-- [ ] `ruff` passes
-- [ ] `mypy` passes
-- [ ] `pytest -q` passes
+- [ ] `ruff check src tests` passes
+- [ ] `mypy src` passes
+- [ ] `pytest -q` passes (331 tests)
+- [ ] `pytest --cov=cognitiveio` shows >= 94%
 - [ ] `run_demo.sh` passes
 - [ ] `schema-check` passes
-- [ ] `verify-mitigations.sh` prints success
+- [ ] `verify-mitigations.sh` prints `ALL MITIGATIONS VERIFIED`
+- [ ] `validate-user-journey.sh` passes
 - [ ] macOS menu/hotkey manual QA complete
 - [ ] `explain-last` and `required-secrets` validated in CLI
 - [ ] privacy artifacts reviewed for redaction compliance

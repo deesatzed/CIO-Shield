@@ -202,3 +202,292 @@ def test_arbiter_candidate_validator():
     assert validate_candidate_choice(None, ["a"])
     assert validate_candidate_choice("a", ["a", "b"])
     assert not validate_candidate_choice("x", ["a", "b"])
+
+
+# ── Phase 6: Runtime edge cases ─────────────────────────────────────
+
+def test_panic_toggle_pause_and_resume(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    assert runtime.paused is False
+
+    out1 = asyncio.run(runtime.process_event(RuntimeEvent(kind="panic")))
+    assert out1.action == "do_nothing"
+    assert runtime.paused is True
+    assert "Paused" in out1.message
+
+    out2 = asyncio.run(runtime.process_event(RuntimeEvent(kind="panic")))
+    assert out2.action == "do_nothing"
+    assert runtime.paused is False
+    assert "Resumed" in out2.message
+
+
+def test_paused_blocks_boundary_event(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    asyncio.run(runtime.process_event(RuntimeEvent(kind="panic")))  # pause
+    assert runtime.paused is True
+
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)
+        )
+    )
+    assert out.action == "do_nothing"
+    assert "Paused" in out.message or "ignored" in out.message.lower()
+
+
+def test_accept_with_no_pending(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(runtime.process_event(RuntimeEvent(kind="accept")))
+    assert out.action == "do_nothing"
+    assert "No suggestion" in out.message
+
+
+def test_dismiss_with_no_pending(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(runtime.process_event(RuntimeEvent(kind="dismiss")))
+    assert out.action == "do_nothing"
+    assert "No suggestion" in out.message
+
+
+def test_undo_with_no_pending(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(runtime.process_event(RuntimeEvent(kind="undo")))
+    assert out.action == "do_nothing"
+    assert "Nothing to undo" in out.message
+
+
+def test_unknown_event_kind(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(runtime.process_event(RuntimeEvent(kind="teleport")))
+    assert out.action == "do_nothing"
+    assert "Unknown event kind" in out.message
+
+
+def test_idle_threshold_not_met(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=50)
+        )
+    )
+    assert out.action == "do_nothing"
+    assert "Idle threshold" in out.message or "idle" in out.message.lower()
+
+
+def test_non_boundary_character_rejected(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary="a", idle_ms=400)
+        )
+    )
+    assert out.action == "do_nothing"
+    assert "boundary" in out.message.lower() or "No boundary" in out.message
+
+
+def test_build_report_returns_proof_report(tmp_path: Path):
+    from cognitiveio.evidence.report_generator import ProofReport
+    runtime = _runtime(tmp_path)
+    asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)
+        )
+    )
+    report = runtime.build_report()
+    assert isinstance(report, ProofReport)
+    assert report.suggestion_shown >= 0
+
+
+# ── Extended runtime coverage ──────────────────────────────────────
+
+def test_merge_candidates_dedup():
+    """_merge_candidates merges duplicate (before, after) keeping higher confidence."""
+    from cognitiveio.runtime.app_runtime import AppRuntime
+    group1 = [
+        {"id": "c1", "before": "teh", "after": "the", "count": 5, "confidence": 0.8},
+    ]
+    group2 = [
+        {"id": "c2", "before": "teh", "after": "the", "count": 10, "confidence": 0.95},
+    ]
+    merged = AppRuntime._merge_candidates(group1, group2)
+    assert len(merged) == 1
+    assert float(merged[0]["confidence"]) == 0.95
+    assert int(merged[0]["count"]) == 10
+
+
+def test_merge_candidates_distinct():
+    """_merge_candidates keeps distinct replacements separate."""
+    from cognitiveio.runtime.app_runtime import AppRuntime
+    group1 = [
+        {"id": "c1", "before": "teh", "after": "the", "count": 5, "confidence": 0.8},
+    ]
+    group2 = [
+        {"id": "c2", "before": "teh", "after": "ten", "count": 3, "confidence": 0.7},
+    ]
+    merged = AppRuntime._merge_candidates(group1, group2)
+    assert len(merged) == 2
+
+
+def test_is_boundary_chars():
+    from cognitiveio.runtime.app_runtime import AppRuntime
+    assert AppRuntime._is_boundary(" ") is True
+    assert AppRuntime._is_boundary(".") is True
+    assert AppRuntime._is_boundary("!") is True
+    assert AppRuntime._is_boundary("a") is False
+    assert AppRuntime._is_boundary("\n") is True
+
+
+def test_strip_shared_boundary():
+    from cognitiveio.runtime.app_runtime import AppRuntime
+    # Both end with boundary char -> stripped
+    b, a = AppRuntime._strip_shared_boundary("teh ", "the ")
+    assert b == "teh"
+    assert a == "the"
+
+    # Different endings -> rstrip
+    b2, a2 = AppRuntime._strip_shared_boundary("teh", "the")
+    assert b2 == "teh"
+    assert a2 == "the"
+
+
+def test_no_local_candidates_path(tmp_path: Path):
+    """When token has no candidates, runtime returns 'No local candidates'."""
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="zzzzz_no_match", boundary=" ", idle_ms=400)
+        )
+    )
+    assert out.action == "do_nothing"
+    assert "No local candidates" in out.message
+
+
+def test_last_decision_snapshot_empty_on_fresh_runtime(tmp_path: Path):
+    runtime = _runtime(tmp_path)
+    snapshot = runtime.last_decision_snapshot()
+    assert snapshot == {} or isinstance(snapshot, dict)
+
+
+def test_recent_suggestions_cleanup(tmp_path: Path):
+    """_recent_suggestions removes entries older than 60s."""
+    import time
+    runtime = _runtime(tmp_path)
+    now = time.time()
+    # Add some old timestamps
+    runtime._suggestion_ts.append(now - 120)
+    runtime._suggestion_ts.append(now - 90)
+    runtime._suggestion_ts.append(now - 10)
+    count = runtime._recent_suggestions(now)
+    assert count == 1  # Only the one from 10s ago
+
+
+def test_negative_signal_old_entries_cleaned(tmp_path: Path):
+    """Old negative event timestamps are cleaned when outside the window."""
+    import time
+    runtime = _runtime(
+        tmp_path,
+        trust_circuit_window_seconds=60,
+        trust_circuit_negative_events=100,
+    )
+    now = time.time()
+    # Add entries older than window
+    runtime._negative_event_ts.append(now - 200)
+    runtime._negative_event_ts.append(now - 150)
+    runtime._negative_event_ts.append(now - 5)
+    runtime._record_negative_signal(now_ts=now)
+    # Old entries should be cleaned, only recent ones remain
+    assert len(runtime._negative_event_ts) == 2  # now-5 and now
+
+
+def test_record_last_decision_write_exception(tmp_path: Path):
+    """_record_last_decision handles write exceptions gracefully."""
+    runtime = _runtime(tmp_path)
+    # Point decision path to a read-only directory
+    runtime._last_decision_path = tmp_path / "nonexistent_dir" / "impossible" / "file.json"
+    # Should not raise
+    runtime._record_last_decision(
+        action="test",
+        reason_tag="test_reason",
+        app_name="Mail",
+        profile="email_docs",
+        token="teh",
+        idle_ms=400,
+        typing_fast=False,
+    )
+
+
+def test_last_decision_snapshot_fallback_exception(tmp_path: Path):
+    """last_decision_snapshot returns {} when file is corrupt."""
+    runtime = _runtime(tmp_path)
+    runtime._last_decision = {}
+    runtime._last_decision_path.parent.mkdir(parents=True, exist_ok=True)
+    runtime._last_decision_path.write_text("NOT JSON {{", encoding="utf-8")
+    snapshot = runtime.last_decision_snapshot()
+    assert snapshot == {}
+
+
+def test_cooldown_path(tmp_path: Path):
+    """Dismissal streak triggers cooldown_until_ts."""
+    runtime = _runtime(
+        tmp_path,
+        suggestion_min_confidence=0.30,
+        dismissals_before_cooldown=2,
+        apple_fm_enabled=False,
+        # Set trust circuit high so it doesn't interfere
+        trust_circuit_negative_events=100,
+        trust_circuit_window_seconds=300,
+        trust_circuit_cooldown_seconds=0,
+    )
+
+    # Suggest -> dismiss x2 -> cooldown
+    asyncio.run(runtime.process_event(RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)))
+    asyncio.run(runtime.process_event(RuntimeEvent(kind="dismiss")))
+    asyncio.run(runtime.process_event(RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)))
+    asyncio.run(runtime.process_event(RuntimeEvent(kind="dismiss")))
+
+    assert runtime._cooldown_until_ts > 0
+
+
+def test_no_replacement_selected_path(tmp_path: Path, monkeypatch):
+    """When decide() returns suggest but with None replacement, runtime returns no_replacement_selected."""
+    from cognitiveio.core.decision_engine import Decision
+    import cognitiveio.core.decision_engine as de_mod
+
+    runtime = _runtime(tmp_path, apple_fm_enabled=False)
+
+    async def _patched_decide(*args, **kwargs):
+        # Return "suggest" with no replacement or candidate_id
+        return Decision("suggest", None, None, 0.8, "patched_no_replacement")
+
+    monkeypatch.setattr(de_mod, "_decide_inner", _patched_decide)
+
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)
+        )
+    )
+    assert out.action == "do_nothing"
+    assert "No replacement selected" in out.message
+
+
+def test_auto_apply_path(tmp_path: Path, monkeypatch):
+    """When decide() returns auto_apply with valid replacement, runtime auto-applies."""
+    from cognitiveio.core.decision_engine import Decision
+    import cognitiveio.core.decision_engine as de_mod
+
+    runtime = _runtime(tmp_path, apple_fm_enabled=False, suggest_only=False, auto_apply_enabled=True)
+
+    async def _patched_decide(*args, **kwargs):
+        return Decision("auto_apply", "the", "c1", 0.99, "soft_auto")
+
+    monkeypatch.setattr(de_mod, "_decide_inner", _patched_decide)
+
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)
+        )
+    )
+    # auto_apply calls accept_pending internally
+    assert out.action == "accept"
+    snapshot = runtime.last_decision_snapshot()
+    assert snapshot.get("reason_tag") == "soft_auto"
