@@ -118,7 +118,8 @@ This project is for Mac users who:
 
 ### Setup
 ```bash
-cd /Volumes/WS4TB/CIO-II
+git clone https://github.com/deesatzed/CIO-II.git
+cd CIO-II
 ./bootstrap.sh
 ```
 
@@ -336,70 +337,30 @@ export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 - run `PYTHONPATH=src python -m cognitiveio.cli arbiter-status`
 - confirm `apple_fm_enabled=True` and `fm_required_for_gray_zone=True`
 
-## Testing and Coverage
+## Verifying Your Installation
 
-**331 tests | 94% measured coverage | 26 modules at 100%**
-
-All tests use real SQLite via `tmp_path` — no mocks, no simulation.
-
+After setup, verify everything works:
 ```bash
-# Full suite with coverage
-pytest -q --cov=cognitiveio --cov-report=term-missing
-
-# Quick run (no coverage measurement)
-pytest -q
-
-# Specific test groups
-pytest tests/test_runtime_flow.py -v          # Runtime state machine (25 tests)
-pytest tests/test_invariants.py -v            # Product contract invariants (21 tests)
-pytest tests/test_cli.py -v                   # CLI commands (36 tests)
-pytest tests/test_local_store_extended.py -v  # SQLite store (42 tests)
-pytest tests/security/ -v                     # Security/redaction
-pytest tests/language/ -v                     # Phrase/concept
-
-# Verification gates
-./verify-mitigations.sh          # Full pipeline: ruff + mypy + pytest + demo + schema + security
-./validate-user-journey.sh       # End-to-end user journey
-```
-
-### Intentionally Uncovered (hardware-dependent, 133 lines)
-
-| Module | Reason |
-|--------|--------|
-| `suggestion_presenter.py` (Cocoa classes) | Requires Cocoa/AppKit framework (NSWindow, NSStatusBar) |
-| `protected_context.py` (AX calls) | Requires macOS Accessibility API permission |
-| `fm_arbiter.py` (inner FM call) | Requires Apple FM SDK hardware runtime |
-| `cli.py` (mac mode) | Requires PyObjC + MacRuntimeBridge event tap |
-| `text_apply.py` (bridge calls) | Requires live macOS pasteboard/keystroke injection |
-
-Hardware-dependent tests are gated behind `live_fm` and `live_mac` markers:
-```bash
-pytest -m live_fm     # Apple FM SDK tests (skip by default)
-pytest -m live_mac    # macOS Accessibility tests (skip by default)
-```
-
-### Release Readiness
-```bash
-pytest -q
+# Run the deterministic demo (confirms core logic works)
 ./run_demo.sh
-./validate-user-journey.sh
-PYTHONPATH=src python -m cognitiveio.cli proof-report
-PYTHONPATH=src python -m cognitiveio.cli health-card
+
+# Check platform requirements (chip, macOS, Xcode, FM runtime)
+PYTHONPATH=src python -m cognitiveio.cli requirements-check
+
+# Full verification pipeline (automated checks)
 ./verify-mitigations.sh
+
+# End-to-end user journey test
+./validate-user-journey.sh
 ```
 
-## Documentation Map
-- `docs/PRODUCT_CONTRACT.md`
-- `docs/FEATURE_MATRIX.md`
-- `docs/IMPLEMENTATION_ROADMAP.md`
-- `docs/STARTUP_PROCEDURES.md`
-- `docs/TESTING_GUIDE.md`
-- `docs/DEMO_SCRIPT.md`
-- `docs/GIT_WORKFLOW.md`
-- `docs/TEST_PLAN_FEATURE_MATRIX.md`
-- `docs/REAL_WORLD_VALIDATION_PLAN.md`
-- `docs/BLOG_CIO_II_LAUNCH.md`
-- `docs/index.html`
+If `verify-mitigations.sh` prints `ALL MITIGATIONS VERIFIED`, your install is correct.
+
+## Further Reading
+- `docs/PRODUCT_CONTRACT.md` — safety invariants and design guarantees
+- `docs/FEATURE_MATRIX.md` — full feature list with priority/complexity
+- `docs/STARTUP_PROCEDURES.md` — platform setup and troubleshooting
+- `docs/DEMO_SCRIPT.md` — what the deterministic demo covers
 
 ## GitHub Pages (Optional)
 To publish the docs landing page:

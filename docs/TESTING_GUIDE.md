@@ -16,7 +16,7 @@ Coverage is measured with `pytest-cov` (configured in `pyproject.toml`).
 
 Run full suite:
 ```bash
-cd /Volumes/WS4TB/CIO-II
+cd CIO-II   # your clone directory
 source .venv/bin/activate
 
 # Full suite with coverage

@@ -5,7 +5,7 @@ This is the launch runbook for operating CIO-II safely and predictably on macOS.
 ## 1. Environment Setup
 
 ```bash
-cd /Volumes/WS4TB/CIO-II
+cd CIO-II   # your clone directory
 ./bootstrap.sh
 ```
 
