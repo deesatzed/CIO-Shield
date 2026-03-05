@@ -1,281 +1,272 @@
 # CIO-II
 
-CIO-II is an on-device, trust-first writing assistant for macOS.
+**Writing assistance powered by Apple's on-chip AI — not the cloud.**
 
-It uses the internal Apple FM on-chip model as a **constrained arbiter**:
-- deterministic logic proposes known safe candidates
-- Apple FM can select a candidate ID or choose `do_nothing`
-- the model never generates replacement text
+[![CI](https://github.com/deesatzed/CIO-II/actions/workflows/ci.yml/badge.svg)](https://github.com/deesatzed/CIO-II/actions/workflows/ci.yml)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![macOS arm64](https://img.shields.io/badge/macOS-arm64%20(Apple%20Silicon)-silver)
+![Local Only](https://img.shields.io/badge/data-local%20only-green)
 
-It is intentionally **not autocorrect** and more than typo cleanup:
-- context-aware phrase expansion (`asap` -> `as soon as possible` in writing contexts)
-- concept normalization (`api` -> `Application Programming Interface` where appropriate)
-- secure secret-alias replacement (`{{SECRET:NAME}}`) with provider-backed resolution, rotation support, and redacted logs
+---
 
-## Main Benefit of the Internal Apple FM On-Chip LLM
-Yes, this is a core architectural advantage.
+CIO-II is a local-first writing assistant for macOS that uses the **Apple Foundation Model running on your Mac's neural engine** to make smarter decisions about when and how to help you write.
 
-The main benefit is better decisions in ambiguous gray-zone cases:
-- deterministic rules surface candidate options
-- Apple FM can rank/select only from those known candidates
-- if confidence stays weak, it returns `do_nothing`
+To our knowledge, CIO-II is the **first open-source macOS application to use Apple's on-device Foundation Model** (`python-apple-fm-sdk` / `SystemLanguageModel`) for real-time writing assistance.
 
-Practical outcome:
-- fewer wrong interventions than aggressive autocorrect
-- higher accept-rate and lower dismiss/undo rate on borderline cases
-- no freeform text invention and no cloud dependency for arbitration
-- measurable trust outcomes via local proof reports and privacy ledger
+It does not generate text. It does not phone home. It watches you type and, only when it is confident, offers a suggestion you can accept with `Tab` or dismiss with `Esc`. If it is not confident, it does nothing.
+
+## How It Works
+
+When you type in an email or document, CIO-II watches for patterns it recognizes — common typos, phrase shortcuts you have configured, abbreviations that could be expanded. When it finds a match, it checks whether the context is safe for a suggestion.
+
+If the situation is ambiguous — two plausible corrections, borderline confidence — CIO-II asks the **Apple Foundation Model running on your Mac's neural engine** to make the call. The model can only pick from options CIO-II already identified, or decide to do nothing. It cannot invent replacement text. It has 80 milliseconds to decide; if it cannot, the answer is do nothing.
+
+You see a suggestion. Press `Tab` to accept, `Esc` to dismiss. That is it.
+
+## Why This Is Different
+
+|  | **CIO-II** | macOS Autocorrect | Grammarly | TextExpander |
+|---|---|---|---|---|
+| **On-device AI** | Apple FM on-chip neural engine | Basic dictionary | Cloud AI | No AI |
+| **Suggests vs. replaces** | Suggest-only by default | Silent replacement | Inline rewrite | Trigger-based |
+| **Works without internet** | Fully local | Yes | No | Yes |
+| **Blocks in password fields** | Hard block, no capture | No | No | No |
+| **Undo with audit trail** | Tracked and reversible | System undo only | No | No |
+| **Learns from your corrections** | Local memory, adapts over time | No | Cloud profile | Manual |
+| **Trust circuit breaker** | Backs off when you dismiss repeatedly | No | No | No |
+| **Knows when to do nothing** | Unknown/code/terminal contexts = no action | No | No | No |
+| **Open source** | Yes | No | No | No |
 
 ## What Problem It Solves
-If you type a lot every day, small errors add up:
-- repeated typos (`teh`, `recieve`, `wierd`)
-- switching context between writing and fixing
-- losing trust when tools rewrite text incorrectly
 
-CIO-II reduces that friction while preserving your intent.
+Most people have seen the same failure pattern with writing tools: autocorrect changes the wrong word, you notice too late, and trust is lost quickly.
+
+If you type a lot every day, small friction adds up:
+- Repeated typos that you fix manually every time (`teh`, `recieve`, `wierd`)
+- Switching context between writing and fixing
+- Losing trust when a tool silently rewrites what you meant to say
+
+CIO-II reduces that friction while preserving your intent. The default is always to suggest, never to silently replace.
 
 ## Who This Is For
-This project is for Mac users who:
-- type frequently in email, docs, chat, and notes
-- want assistance without cloud dependency
-- care about auditability and safety controls
-- have moderate technical comfort, but are not full-time software engineers
 
-## Why Someone Would Use It (Benefits)
-1. Fewer interruptions while writing:
-- suggestions appear only at safe moments (word boundary + idle pause)
-- no popups, no blocking dialogs
-2. More trust than autocorrect:
-- default is suggest-only
-- you choose with `Tab` (accept) or `Esc` (dismiss)
-- undo path is explicit and tracked
-3. Better privacy posture:
-- local-only storage
-- privacy ledger of blocked/stored events
-- no raw keystroke stream persisted
-4. Predictable safety behavior:
-- protected contexts block intervention
-- unknown/code/terminal contexts default to no action
-- panic hotkey can pause everything instantly
+Mac users who type frequently and want assistance without surprises:
+- Operations and support staff handling high-volume email
+- Founders and product managers writing docs all day
+- Analysts and researchers drafting reports
+- Students and writers who need flow, not interruption
+- Anyone who types a lot but does not want AI to "take the wheel"
 
-## Real Use Cases
-1. Email and support replies:
-- Benefit: catches repeated high-confidence typos without silently changing meaning
-2. Writing documentation:
-- Benefit: keeps flow; suggestion appears only when you pause naturally
-3. Fast note-taking:
-- Benefit: if typing is very fast, CIO-II suppresses suggestions to avoid noise
-4. Sensitive workflows:
-- Benefit: in password/protected contexts, it blocks capture and intervention
-5. Mixed work (writing + coding):
-- Benefit: in code/terminal profiles it does nothing, so identifiers are not touched
+You need moderate technical comfort to install it (command line), but you do not need to be a software engineer to use it.
 
-## What Makes It “Not Autocorrect”
-1. Default mode is `suggest-only`, not silent replacement.
-2. Unknown profile => `do_nothing`.
-3. Code/terminal profile => `do_nothing`.
-4. Candidate ambiguity => on-chip FM selector decides, or fail-safe `do_nothing`.
-5. Apple FM path is selector-only:
-- can choose from provided candidates
-- or return `do_nothing`
-- cannot invent replacement text
-- is intended to improve ambiguous-case precision, not to generate text
+## Real Examples
 
-## What Makes It More Than Autocomplete
-1. Phrase intelligence:
-- learns and serves reusable phrase patterns by context profile (email/docs/chat).
-2. Concept intelligence:
-- maps shorthand concepts to canonical terms safely (`mvp`, `api`, `sla`, etc.).
-3. Hybrid assistance:
-- suggest-first by default; optional auto-apply is tightly gated by confidence and safety policy.
-4. Secure token workflows:
-- supports alias-based insertion (`{{SECRET:...}}`) with provider lookup and no plaintext secret storage in ledger/report data.
+**Typo in Mail** — You type `teh` in an email. At a natural pause, CIO-II offers `the`. Press `Tab` to accept or `Esc` to dismiss.
 
-## Safety and Privacy Model (Plain Language)
-1. Protected Mode:
-- If password field/excluded context is detected, CIO-II blocks action.
-- Indicator state reflects this in native mode (`CIO-P`).
-2. Panic key:
-- Immediately pauses observation/intervention (`CIO-II` status in menu bar).
-3. Local data:
-- Stored in local SQLite under `~/.cognitiveio` (or configured path).
-- Includes learned patterns, privacy ledger, and proof reports.
-4. Auditability:
-- `proof-report` shows accept/dismiss/undo/block rates.
-- `privacy-ledger` shows blocked reasons and minimal event metadata.
+**Writing in VS Code** — You are editing code. CIO-II detects a code profile and does nothing. Your identifiers and commands are never touched.
 
-## Installation (Recommended: `uv`)
+**Password field** — You are in a login form or password manager. CIO-II hard-blocks all capture and suggestions. The menu bar shows `CIO-P` (protected).
 
-### Requirements
-- Apple Silicon Mac (`arm64`)
-- macOS `26.0+`
-- Python 3.11+
-- `uv` installed
-- Apple Intelligence enabled (for on-chip FM runtime availability)
+**Repeated dismissals** — You keep dismissing suggestions. CIO-II enters a trust cooldown and stops suggesting temporarily. The menu bar shows the countdown.
 
-### Build Requirements (Apple FM SDK)
-- Full Xcode `26.0+` (not only Command Line Tools)
+**Dot-phrase expansion** — You type `.meW` in an email and CIO-II expands it to your full work signature, including secret-alias fields that resolve at apply-time without ever storing plaintext.
 
-### Setup
+**Ambiguous correction** — You type `wierd` and there are two plausible corrections. Instead of guessing, CIO-II asks the Apple FM model on your chip to pick the best one — or do nothing if confidence is low.
+
+## Quick Start
+
 ```bash
 git clone https://github.com/deesatzed/CIO-II.git
 cd CIO-II
 ./bootstrap.sh
 ```
 
-`bootstrap.sh` creates `.venv`, installs CIO-II dependencies, installs `apple_fm_sdk` (cloning if needed), and runs `requirements-check`.
+`bootstrap.sh` creates the virtual environment, installs dependencies, clones and builds the Apple FM SDK, and verifies your platform requirements.
 
-Manual Apple FM SDK install for on-chip arbiter integration (builds local bindings):
+Then try it:
 ```bash
-# clone locally if you do not already have the SDK repo:
+# Run the deterministic demo (see all safety behaviors in action)
+./run_demo.sh
+
+# Start native macOS mode (menu bar, hotkeys, real-time suggestions)
+cio-ii run --mode mac
+```
+
+## Verify It Works
+
+```bash
+./run_demo.sh                    # 7 demo episodes, all should match expected outcomes
+cio-ii requirements-check        # All platform requirement rows show PASS
+./verify-mitigations.sh          # Prints: ALL MITIGATIONS VERIFIED
+./validate-user-journey.sh       # Prints: USER JOURNEY VALIDATED
+```
+
+---
+
+# Reference
+
+Everything below is detailed technical reference. Click any section to expand.
+
+<details>
+<summary><strong>Installation Details</strong></summary>
+
+### Requirements
+- Apple Silicon Mac (`arm64`)
+- macOS 26.0+
+- Python 3.11+
+- `uv` installed ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
+- Apple Intelligence enabled (for on-chip FM runtime availability)
+
+### Build Requirements (Apple FM SDK)
+- Full Xcode 26.0+ (not only Command Line Tools)
+
+### What bootstrap.sh Does
+1. Creates `.venv` with Python 3.11+
+2. Installs CIO-II and all dependencies
+3. Clones `python-apple-fm-sdk` and builds it locally
+4. Runs `requirements-check` to verify your platform
+
+### Manual Apple FM SDK Install
+If you need to install the SDK separately:
+```bash
+# Clone the SDK repo
 git clone https://github.com/apple/python-apple-fm-sdk
 
-# install from cloned folder:
+# Install from the cloned folder
 uv pip install -e ./python-apple-fm-sdk
 
-# if sdk repo is sibling of CIO-II:
+# Or if the SDK repo is a sibling of CIO-II
 uv pip install -e ../python-apple-fm-sdk
 
-# or install from any absolute local path:
-uv pip install -e /absolute/path/to/python-apple-fm-sdk
-
-# verify sdk import in active venv:
+# Verify it works
 python -c "import apple_fm_sdk; print(apple_fm_sdk.__file__)"
 ```
-If unavailable, CIO-II remains fail-safe and blocks ambiguous gray-zone interventions.
 
-## First 10 Minutes (New User Walkthrough)
-1. Run deterministic demo:
+If the Apple FM SDK is unavailable, CIO-II remains fully functional in deterministic-only mode — it simply blocks ambiguous gray-zone interventions instead of routing them to the FM arbiter.
+
+</details>
+
+<details>
+<summary><strong>Daily Commands</strong></summary>
+
 ```bash
-./run_demo.sh
-```
-2. Verify platform requirements:
-```bash
-PYTHONPATH=src python -m cognitiveio.cli requirements-check
-```
-3. Print proof report:
-```bash
-PYTHONPATH=src python -m cognitiveio.cli proof-report
-```
-4. Print health card:
-```bash
-PYTHONPATH=src python -m cognitiveio.cli health-card
-```
-5. View privacy ledger:
-```bash
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
-```
-6. Try native macOS mode:
-```bash
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac
-```
+# Start modes
+cio-ii run --mode mac             # Native macOS mode (menu bar, hotkeys, event tap)
+cio-ii run --mode auto            # Auto mode (falls back to headless if event tap unavailable)
+./run.sh                          # Headless interactive mode
+./run_demo.sh                     # Deterministic demo
 
-## Daily Commands
-```bash
-# Headless interactive mode
-./run.sh
+# Reports and status
+cio-ii proof-report               # Accept/dismiss/undo/block rates
+cio-ii health-card                # System health overview
+cio-ii arbiter-status             # Apple FM arbiter state
+cio-ii requirements-check         # Platform requirement checks
+cio-ii schema-check               # Database schema validation
+cio-ii explain-last               # Latest runtime decision details
+cio-ii explain-last --json        # Same, in JSON format
 
-# Auto mode (falls back to headless if mac event tap is unavailable)
-# Runs platform preflight checks by default.
-PYTHONPATH=src python -m cognitiveio.cli run --mode auto
+# Privacy
+cio-ii privacy-ledger --limit 25              # View recent ledger events
+cio-ii privacy-ledger --export-path ./ledger.json  # Export ledger to file
 
-# Native macOS event-tap mode (strict)
-# Runs platform preflight checks by default.
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac
+# Phrase management
+cio-ii phrase-add ".meW" 'Best,\nYour Name' --profile email_docs --confidence 0.99
+cio-ii phrase-list --profile email_docs
+cio-ii phrase-remove ".meW" --profile email_docs
 
-# Bypass preflight temporarily (not recommended)
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac --skip-preflight
+# Language assets
+cio-ii seed-language-assets       # Seed common typo/concept/phrase patterns
 
-# Demo mode
-./run_demo.sh
+# Secret inventory
+cio-ii required-secrets --limit 100   # Show tracked secret alias names
 
-# Reports
-PYTHONPATH=src python -m cognitiveio.cli proof-report
-PYTHONPATH=src python -m cognitiveio.cli health-card
-
-# Privacy ledger
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --export-path ./ledger.json
-
-# FM arbiter status
-PYTHONPATH=src python -m cognitiveio.cli arbiter-status
-
-# Check Apple chip/macOS/Xcode/FM runtime requirements
-PYTHONPATH=src python -m cognitiveio.cli requirements-check
-
-# Schema check
-PYTHONPATH=src python -m cognitiveio.cli schema-check
-
-# Seed common phrase/concept assets
-PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
-
-# Explain latest runtime decision
-PYTHONPATH=src python -m cognitiveio.cli explain-last
-PYTHONPATH=src python -m cognitiveio.cli explain-last --json
-
-# Show required secret aliases registered from suggestions
-PYTHONPATH=src python -m cognitiveio.cli required-secrets --limit 100
-
-# Add/list/remove phrase expansions
-PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
-PYTHONPATH=src python -m cognitiveio.cli phrase-list --profile email_docs
-PYTHONPATH=src python -m cognitiveio.cli phrase-remove ".meW" --profile email_docs
-
-# Delete all local CIO-II data
-PYTHONPATH=src python -m cognitiveio.cli delete-all --confirm
+# Reset
+cio-ii delete-all --confirm       # Delete all local CIO-II data
 ```
 
-## Dot-Phrase Examples
-1. Work signature in email/docs context:
+</details>
+
+<details>
+<summary><strong>Dot-Phrase Examples</strong></summary>
+
+### Work signature in email/docs context
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
+cio-ii phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
 ```
 
-2. Prompt scaffold for technical analysis:
+### Prompt scaffold for technical analysis
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli phrase-add ".TS1" "For these issues, complete an in-depth root cause analysis of the top 4 causes arranged by probability. For each cause, generate 3 mitigations arranged by probability. Lastly, reassess all outputs and develop the mitigation plan." --profile email_docs --confidence 0.97
+cio-ii phrase-add ".TS1" "For these issues, complete an in-depth root cause analysis of the top 4 causes arranged by probability. For each cause, generate 3 mitigations arranged by probability. Lastly, reassess all outputs and develop the mitigation plan." --profile email_docs --confidence 0.97
 ```
 
-3. Secret aliases for signature fields:
+### Secret aliases for signature fields
 ```bash
 export COGNITIVEIO_SECRET_WORK_EMAIL='you@company.com'
 export COGNITIVEIO_SECRET_WORK_PHONE='+1-555-555-1212'
 ```
 
-4. Use:
-- Type `.meW` or `.TS1` followed by a boundary (space/enter/punctuation).
-- Press `Tab` to accept or `Esc` to dismiss.
+### Using dot-phrases
+Type `.meW` or `.TS1` followed by a boundary (space, enter, or punctuation). Press `Tab` to accept or `Esc` to dismiss.
 
-## Native macOS UX and Controls
-1. Menu bar states:
-- `CIO`: running
-- `CIO-P`: protected mode active
-- `CIO-II`: paused
-2. Menu bar actions:
-- `Pause Suggestions` / `Resume Suggestions`: toggle panic mode
-- `Explain Last Decision`: prints action/reason/profile/token summary in terminal
-- `Show Required Secrets`: prints tracked alias names from local registry
-- `Manage Dot-Phrases`: prints quick CLI commands and current triggers
-3. Trust feedback:
-- if trust cooldown is active, status shows `Trust cooldown active (Ns)`
-4. Suggestion controls:
-- `Tab`: accept suggestion
-- `Esc`: dismiss suggestion
-- unresolved secret alias on accept is fail-closed with a clear status/terminal message
-5. Hotkeys (default):
-- panic toggle: `ctrl+option+p`
-- undo: `ctrl+option+z`
+</details>
 
-## Runtime Defaults
-- `suggest_only = true`
-- `auto_apply_enabled = false`
-- `apple_fm_enabled = true`
-- `apple_fm_variant = B` by default
-- `apple_fm_ab_enabled = false` by default
-- `fm_required_for_gray_zone = true` (fail-closed if FM arbiter unavailable in gray-zone)
-- unknown/code/terminal profiles default to `do_nothing`
+<details>
+<summary><strong>Native macOS UX and Controls</strong></summary>
 
-## Environment Variables You May Actually Use
+### Menu bar states
+- `CIO` — running normally
+- `CIO-P` — protected mode active (password field or excluded app)
+- `CIO-II` — paused (panic mode)
+
+### Menu bar actions
+- **Pause Suggestions / Resume Suggestions** — toggle panic mode
+- **Explain Last Decision** — prints action, reason, profile, and token summary
+- **Show Required Secrets** — prints tracked alias names from local registry
+- **Manage Dot-Phrases** — prints current triggers and CLI commands
+
+### Trust feedback
+When trust cooldown is active, the status shows `Trust cooldown active (Ns)` with a live countdown.
+
+### Suggestion controls
+- `Tab` — accept suggestion
+- `Esc` — dismiss suggestion
+- Unresolved secret alias on accept is fail-closed with a clear message
+
+### Hotkeys (default)
+- Panic toggle: `ctrl+option+p`
+- Undo: `ctrl+option+z`
+
+</details>
+
+<details>
+<summary><strong>Safety and Privacy Model</strong></summary>
+
+### Protected Mode
+If a password field or excluded context is detected, CIO-II hard-blocks all capture and suggestions. The menu bar indicator shows `CIO-P`.
+
+### Panic Key
+`ctrl+option+p` immediately pauses all observation and intervention. Menu bar shows `CIO-II`.
+
+### Local Data
+All data is stored in local SQLite under `~/.cognitiveio` (or a configured path). This includes learned patterns, the privacy ledger, and proof reports. Nothing leaves your machine.
+
+### Auditability
+- `cio-ii proof-report` — shows accept/dismiss/undo/block rates with trendlines
+- `cio-ii privacy-ledger` — shows blocked reasons and minimal event metadata
+- No raw keystroke stream is ever persisted
+
+### What CIO-II Will Never Do
+- Silently replace text without showing you first (suggest-only is default)
+- Intervene in code editors, terminals, or unknown applications
+- Send data to a cloud service
+- Store raw keystrokes
+- Generate replacement text (the AI model can only select from known candidates)
+
+</details>
+
+<details>
+<summary><strong>Environment Variables</strong></summary>
+
 ```bash
 # Change local data location
 export COGNITIVEIO_HOME=/path/to/local/dir
@@ -293,79 +284,61 @@ export COGNITIVEIO_FM_REQUIRED_FOR_GRAY_ZONE=1
 export COGNITIVEIO_PANIC_HOTKEY=ctrl+option+p
 export COGNITIVEIO_UNDO_HOTKEY=ctrl+option+z
 
-# Local store encryption mode: off|optional|required
+# Local store encryption mode: off | optional | required
 export COGNITIVEIO_DB_ENCRYPTION=optional
 
-# Optional db key alias reference (resolved from env or secret provider)
+# Optional DB key alias reference
 export COGNITIVEIO_DB_KEY_REF='{{SECRET:COGNITIVEIO_DB_KEY}}'
 
 # Env-backed secret source example
 export COGNITIVEIO_SECRET_COGNITIVEIO_DB_KEY='replace-me'
 ```
 
-## Troubleshooting
-1. “No suggestions appear”:
-- check you are at a word boundary
-- check idle pause is reached
-- check profile is not code/terminal/unknown
-- check trust cooldown is not active
-2. “mac mode doesn’t work”:
-- grant Accessibility permission in macOS settings for your terminal/python process
-3. “requirements-check fails”:
-- verify machine architecture is `arm64`
-- verify `sw_vers -productVersion` is `26.0+`
-- verify `xcodebuild -version` is `26.0+`
-- verify `xcode-select -p` points to `/Applications/Xcode.app/Contents/Developer`
-- if details show `sdk_import_error:*`, run:
-  `./bootstrap.sh`
-  or
-  `git clone https://github.com/apple/python-apple-fm-sdk`
-  `uv pip install -e ./python-apple-fm-sdk`
-  or
-  `uv pip install -e ../python-apple-fm-sdk`
-  or `uv pip install -e /absolute/path/to/python-apple-fm-sdk`
-4. “I want a clean reset”:
-- run `delete-all --confirm`
-5. “I want deterministic-only fallback mode”:
-- set `COGNITIVEIO_ENABLE_APPLE_FM=0`
-6. “Accept says missing secret alias”:
-- run `PYTHONPATH=src python -m cognitiveio.cli required-secrets`
-- set missing env vars like `COGNITIVEIO_SECRET_WORK_EMAIL=...`
-- retry accept
-7. “Too many do-nothing outcomes in ambiguous cases”:
-- ensure Apple FM SDK is installed and available
-- run `PYTHONPATH=src python -m cognitiveio.cli arbiter-status`
-- confirm `apple_fm_enabled=True` and `fm_required_for_gray_zone=True`
+</details>
 
-## Verifying Your Installation
+<details>
+<summary><strong>Troubleshooting</strong></summary>
 
-After setup, verify everything works:
-```bash
-# Run the deterministic demo (confirms core logic works)
-./run_demo.sh
+**"No suggestions appear"**
+- Check you are at a word boundary (space, punctuation)
+- Check idle pause has been reached (default 300ms)
+- Check profile is not code/terminal/unknown
+- Check trust cooldown is not active
 
-# Check platform requirements (chip, macOS, Xcode, FM runtime)
-PYTHONPATH=src python -m cognitiveio.cli requirements-check
+**"Mac mode doesn't work"**
+- Grant Accessibility permission in macOS `System Settings > Privacy & Security > Accessibility` for your terminal or Python process
 
-# Full verification pipeline (automated checks)
-./verify-mitigations.sh
+**"requirements-check fails"**
+- Verify machine architecture is `arm64`
+- Verify `sw_vers -productVersion` is 26.0+
+- Verify `xcodebuild -version` is 26.0+
+- Verify `xcode-select -p` points to `/Applications/Xcode.app/Contents/Developer`
+- If details show `sdk_import_error:*`, run `./bootstrap.sh`
 
-# End-to-end user journey test
-./validate-user-journey.sh
-```
+**"I want a clean reset"**
+- Run `cio-ii delete-all --confirm`
 
-If `verify-mitigations.sh` prints `ALL MITIGATIONS VERIFIED`, your install is correct.
+**"I want deterministic-only mode (no FM)"**
+- Set `COGNITIVEIO_ENABLE_APPLE_FM=0`
 
-## Further Reading
+**"Accept says missing secret alias"**
+- Run `cio-ii required-secrets` to see which aliases are needed
+- Set the missing env vars (e.g., `export COGNITIVEIO_SECRET_WORK_EMAIL=...`)
+- Retry accept
+
+**"Too many do-nothing outcomes in ambiguous cases"**
+- Ensure Apple FM SDK is installed: `cio-ii arbiter-status`
+- Confirm `apple_fm_enabled=True` and `fm_required_for_gray_zone=True`
+
+</details>
+
+<details>
+<summary><strong>Further Reading</strong></summary>
+
 - `docs/PRODUCT_CONTRACT.md` — safety invariants and design guarantees
-- `docs/FEATURE_MATRIX.md` — full feature list with priority/complexity
-- `docs/STARTUP_PROCEDURES.md` — platform setup and troubleshooting
+- `docs/FEATURE_MATRIX.md` — full feature list with priority and complexity
+- `docs/STARTUP_PROCEDURES.md` — platform setup and detailed troubleshooting
 - `docs/DEMO_SCRIPT.md` — what the deterministic demo covers
+- `docs/BLOG_CIO_II_LAUNCH.md` — launch blog post
 
-## GitHub Pages (Optional)
-To publish the docs landing page:
-1. Open repo settings for `deesatzed/CIO-II`.
-2. Go to `Pages`.
-3. Set source to `Deploy from a branch`.
-4. Select branch `main` and folder `/docs`.
-5. Save.
+</details>
