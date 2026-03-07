@@ -124,7 +124,7 @@ Seeds language assets, adds phrases, runs suggest/accept flow, generates reports
 
 Start runtime:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac
+cio-ii run --mode mac
 ```
 
 Validate:
@@ -148,10 +148,10 @@ Validate:
 
 Commands:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --export-path ./ledger.json
-PYTHONPATH=src python -m cognitiveio.cli proof-report
-PYTHONPATH=src python -m cognitiveio.cli health-card
+cio-ii privacy-ledger --limit 25
+cio-ii privacy-ledger --export-path ./ledger.json
+cio-ii proof-report
+cio-ii health-card
 ```
 
 Verify:

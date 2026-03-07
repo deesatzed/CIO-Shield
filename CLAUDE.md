@@ -21,8 +21,8 @@ source .venv/bin/activate         # Activate venv (bootstrap does this internall
 ### Running
 ```bash
 ./run.sh                                                    # Headless interactive mode
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac      # Native macOS event-tap mode
-PYTHONPATH=src python -m cognitiveio.cli run --mode auto     # Auto (falls back to headless)
+cio-ii run --mode mac      # Native macOS event-tap mode
+cio-ii run --mode auto     # Auto (falls back to headless)
 ./run_demo.sh                                                # Deterministic demo
 ```
 
@@ -54,15 +54,15 @@ mypy src                          # Type check (Python 3.11 baseline)
 
 ### CLI Utility Commands
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli requirements-check     # Platform preflight
-PYTHONPATH=src python -m cognitiveio.cli proof-report            # Metrics summary
-PYTHONPATH=src python -m cognitiveio.cli health-card             # Status overview
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
-PYTHONPATH=src python -m cognitiveio.cli arbiter-status          # FM arbiter state
-PYTHONPATH=src python -m cognitiveio.cli schema-check            # DB schema validation
-PYTHONPATH=src python -m cognitiveio.cli explain-last            # Last runtime decision
-PYTHONPATH=src python -m cognitiveio.cli seed-language-assets    # Seed typo/concept/phrase data
-PYTHONPATH=src python -m cognitiveio.cli delete-all --confirm    # Factory reset
+cio-ii requirements-check     # Platform preflight
+cio-ii proof-report            # Metrics summary
+cio-ii health-card             # Status overview
+cio-ii privacy-ledger --limit 25
+cio-ii arbiter-status          # FM arbiter state
+cio-ii schema-check            # DB schema validation
+cio-ii explain-last            # Last runtime decision
+cio-ii seed-language-assets    # Seed typo/concept/phrase data
+cio-ii delete-all --confirm    # Factory reset
 ```
 
 ## Architecture

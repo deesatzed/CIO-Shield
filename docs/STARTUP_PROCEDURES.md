@@ -41,7 +41,7 @@ Use this for on-chip gray-zone arbitration. Apple FM remains constrained to sele
 ```
 2. Validate platform requirements:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli requirements-check
+cio-ii requirements-check
 ```
 3. Run automated user-journey validation:
 ```bash
@@ -56,37 +56,37 @@ PYTHONPATH=src python -m cognitiveio.cli requirements-check
 - Undo event
 5. Print proof report:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli proof-report
+cio-ii proof-report
 ```
 6. Print health card:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli health-card
+cio-ii health-card
 ```
 7. Seed common language assets:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
+cio-ii seed-language-assets
 ```
 8. Add dot-phrase examples:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
-PYTHONPATH=src python -m cognitiveio.cli phrase-add ".TS1" "For these issues, complete an in-depth root cause analysis of the top 4 causes arranged by probability. For each cause, generate 3 mitigations arranged by probability. Lastly, reassess all outputs and develop the mitigation plan." --profile email_docs --confidence 0.97
-PYTHONPATH=src python -m cognitiveio.cli phrase-list --profile email_docs
+cio-ii phrase-add ".meW" $'Best,\nYour Name\nYour Role\n{{SECRET:WORK_EMAIL}}\n{{SECRET:WORK_PHONE}}' --profile email_docs --confidence 0.99
+cio-ii phrase-add ".TS1" "For these issues, complete an in-depth root cause analysis of the top 4 causes arranged by probability. For each cause, generate 3 mitigations arranged by probability. Lastly, reassess all outputs and develop the mitigation plan." --profile email_docs --confidence 0.97
+cio-ii phrase-list --profile email_docs
 ```
 9. Validate explainability and secret inventory commands:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli explain-last
-PYTHONPATH=src python -m cognitiveio.cli required-secrets --limit 100
+cio-ii explain-last
+cio-ii required-secrets --limit 100
 ```
 
 ## 3. macOS Permissions and Runtime
 
 1. Launch native mode:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac
+cio-ii run --mode mac
 ```
 For safer default behavior, use auto mode:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli run --mode auto
+cio-ii run --mode auto
 ```
 Both run commands execute platform preflight checks by default. Use `--skip-preflight` only for temporary diagnostics.
 2. In macOS `System Settings -> Privacy & Security -> Accessibility`, allow Terminal/iTerm/Python host process.
@@ -124,17 +124,17 @@ Profile expectations:
 
 View latest ledger events:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
+cio-ii privacy-ledger --limit 25
 ```
 
 Export ledger:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --export-path ./ledger.json
+cio-ii privacy-ledger --export-path ./ledger.json
 ```
 
 Reset local data:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli delete-all --confirm
+cio-ii delete-all --confirm
 ```
 
 ## 6. Pre-Launch Checklist (Before Twitter/X)

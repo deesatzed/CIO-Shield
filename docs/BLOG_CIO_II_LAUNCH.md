@@ -155,39 +155,29 @@ Run the deterministic demo and inspect outputs:
 ```bash
 git clone https://github.com/deesatzed/CIO-II.git
 cd CIO-II
-uv venv .venv
-source .venv/bin/activate
-uv pip install -e ".[dev,mac]"
+./bootstrap.sh
 ./run_demo.sh
-PYTHONPATH=src python -m cognitiveio.cli seed-language-assets
-PYTHONPATH=src python -m cognitiveio.cli schema-check
-```
-
-Run tests:
-```bash
-pytest -q
-./verify-mitigations.sh
 ```
 
 Run native mode:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac
+cio-ii run --mode mac
 ```
 
 See proof report:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli proof-report
+cio-ii proof-report
 ```
 
 Explain latest decision:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli explain-last
-PYTHONPATH=src python -m cognitiveio.cli explain-last --json
+cio-ii explain-last
+cio-ii explain-last --json
 ```
 
 List required secret aliases:
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli required-secrets --limit 100
+cio-ii required-secrets --limit 100
 ```
 
 ## What CIO-II Is Not

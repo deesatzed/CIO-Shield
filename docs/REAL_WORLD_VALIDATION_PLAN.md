@@ -34,7 +34,7 @@ Pass condition:
 Run:
 
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac
+cio-ii run --mode mac
 ```
 
 Then in a writing app (Notes or TextEdit):
@@ -59,10 +59,10 @@ For clean manual tests:
 After testing, run:
 
 ```bash
-PYTHONPATH=src python -m cognitiveio.cli explain-last --json
-PYTHONPATH=src python -m cognitiveio.cli proof-report
-PYTHONPATH=src python -m cognitiveio.cli health-card
-PYTHONPATH=src python -m cognitiveio.cli privacy-ledger --limit 25
+cio-ii explain-last --json
+cio-ii proof-report
+cio-ii health-card
+cio-ii privacy-ledger --limit 25
 ```
 
 Pass condition:
@@ -73,10 +73,10 @@ Pass condition:
 ## 6) Failure Triage
 
 If nothing happens while typing:
-- Run `PYTHONPATH=src python -m cognitiveio.cli requirements-check`
+- Run `cio-ii requirements-check`
 - Ensure app is not paused (`ctrl+option+p` toggles)
 - Confirm typing app profile is not code/terminal
-- Seed assets: `PYTHONPATH=src python -m cognitiveio.cli seed-language-assets`
+- Seed assets: `cio-ii seed-language-assets`
 - Re-test with token `teh ` in Notes/TextEdit
 
 If FM check fails with `sdk_import_error`:
