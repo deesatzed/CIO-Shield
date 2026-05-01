@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CIO-II | Intent-Preserving Typing Assistance for macOS</title>
+    <title>CIO-II | Writing Assistance Powered by Apple's On-Chip AI</title>
     <meta
       name="description"
-      content="CIO-II is a local-first macOS typing copilot: suggest-only by default, hard privacy blocks, perfect undo, and an internal Apple FM on-chip arbiter for ambiguous gray-zone decisions."
+      content="CIO-II is the first open-source macOS app to use Apple's on-device Foundation Model for writing assistance. Suggest-only, local-only, trust-first. No cloud. No telemetry."
     />
     <style>
       :root {
@@ -18,6 +18,7 @@
         --accent-2: #ffb86b;
         --card: rgba(21, 34, 39, 0.8);
         --line: rgba(132, 176, 165, 0.28);
+        --code-bg: rgba(6, 9, 11, 0.72);
       }
 
       * {
@@ -32,18 +33,18 @@
           radial-gradient(1200px 500px at 12% -10%, #1e5e56 0%, transparent 55%),
           radial-gradient(900px 420px at 95% 0%, #7a4f22 0%, transparent 48%),
           linear-gradient(180deg, #0b1215, #0e171a 60%, #0b1215);
-        line-height: 1.5;
+        line-height: 1.6;
       }
 
       .wrap {
         max-width: 1000px;
         margin: 0 auto;
-        padding: 28px 18px 72px;
+        padding: 40px 20px 80px;
       }
 
       .pill {
         display: inline-block;
-        padding: 6px 12px;
+        padding: 6px 14px;
         border: 1px solid var(--line);
         border-radius: 999px;
         background: rgba(84, 212, 180, 0.1);
@@ -54,48 +55,57 @@
       }
 
       h1 {
-        font-size: clamp(34px, 6vw, 72px);
+        font-size: clamp(36px, 6vw, 72px);
         letter-spacing: -0.03em;
-        margin: 14px 0 6px;
+        margin: 16px 0 8px;
         line-height: 0.95;
       }
 
       h2 {
-        font-size: clamp(20px, 3vw, 30px);
-        margin: 0 0 10px;
+        font-size: clamp(20px, 3vw, 28px);
+        margin: 0 0 12px;
         letter-spacing: -0.01em;
+        color: var(--accent);
+      }
+
+      h3 {
+        font-size: 18px;
+        margin: 0 0 8px;
+        color: var(--accent-2);
       }
 
       p {
-        margin: 0 0 12px;
+        margin: 0 0 14px;
       }
 
       .lead {
         color: #d2e5e0;
-        max-width: 780px;
+        max-width: 800px;
         font-size: clamp(16px, 2.3vw, 21px);
       }
 
       .meta {
         color: var(--muted);
-        margin-top: 6px;
+        margin-top: 8px;
+        font-size: 15px;
       }
 
       .hero-actions {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
-        margin-top: 18px;
+        margin-top: 20px;
       }
 
       .btn {
         display: inline-block;
         text-decoration: none;
-        padding: 11px 16px;
+        padding: 12px 18px;
         border-radius: 11px;
         border: 1px solid var(--line);
         color: var(--text);
         background: rgba(8, 14, 17, 0.5);
+        font-size: 14px;
         transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
       }
 
@@ -111,51 +121,82 @@
         font-weight: 700;
       }
 
+      section {
+        margin-top: 48px;
+      }
+
       .grid {
-        margin-top: 30px;
         display: grid;
-        grid-template-columns: repeat(12, 1fr);
-        gap: 14px;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin-top: 20px;
+      }
+
+      @media (min-width: 860px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+        }
       }
 
       .card {
-        grid-column: span 12;
         background: var(--card);
         border: 1px solid var(--line);
         border-radius: 14px;
-        padding: 16px;
+        padding: 20px;
         backdrop-filter: blur(3px);
         animation: rise 440ms ease both;
       }
 
-      .card:nth-child(2) {
-        animation-delay: 60ms;
-      }
-      .card:nth-child(3) {
-        animation-delay: 120ms;
-      }
-      .card:nth-child(4) {
-        animation-delay: 180ms;
-      }
+      .card:nth-child(2) { animation-delay: 60ms; }
+      .card:nth-child(3) { animation-delay: 120ms; }
+      .card:nth-child(4) { animation-delay: 180ms; }
+      .card:nth-child(5) { animation-delay: 240ms; }
+      .card:nth-child(6) { animation-delay: 300ms; }
 
-      .card ul {
+      .card p {
+        color: #c8ddd8;
         margin: 0;
-        padding-left: 20px;
-        color: #d1e6e0;
+        font-size: 15px;
       }
 
-      .card li {
+      .example-card {
+        grid-column: 1 / -1;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 20px 24px;
+        backdrop-filter: blur(3px);
+      }
+
+      .example-card .scenario {
+        color: var(--muted);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
         margin-bottom: 6px;
       }
 
+      .example-card .action {
+        color: #d2e5e0;
+        font-size: 16px;
+        margin-bottom: 4px;
+      }
+
+      .example-card .result {
+        color: var(--accent);
+        font-size: 15px;
+        font-weight: 600;
+      }
+
       pre {
-        margin: 10px 0 0;
-        padding: 12px;
+        margin: 12px 0 0;
+        padding: 14px;
         border-radius: 10px;
-        background: rgba(6, 9, 11, 0.72);
+        background: var(--code-bg);
         border: 1px solid rgba(104, 145, 134, 0.34);
         color: #c2e4dc;
         overflow-x: auto;
+        font-size: 13px;
       }
 
       code {
@@ -163,24 +204,69 @@
         font-size: 13px;
       }
 
+      .inline-code {
+        background: rgba(84, 212, 180, 0.12);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "SF Mono", "Menlo", monospace;
+        font-size: 13px;
+      }
+
+      .req-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 14px;
+        font-size: 14px;
+      }
+
+      .req-table th {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .req-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(132, 176, 165, 0.12);
+        color: #c8ddd8;
+      }
+
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .badge-green { background: rgba(84, 212, 180, 0.2); color: #54d4b4; }
+      .badge-blue { background: rgba(100, 160, 255, 0.2); color: #8ac4ff; }
+      .badge-amber { background: rgba(255, 184, 107, 0.2); color: var(--accent-2); }
+
       .subtle {
         color: var(--muted);
+        font-size: 14px;
       }
 
       footer {
-        margin-top: 30px;
+        margin-top: 48px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
         color: var(--muted);
         font-size: 14px;
       }
 
       a {
         color: #9debd4;
-      }
-
-      @media (min-width: 860px) {
-        .card.span-6 {
-          grid-column: span 6;
-        }
       }
 
       @keyframes rise {
@@ -197,82 +283,244 @@
   </head>
   <body>
     <main class="wrap">
-      <span class="pill">Open Source • macOS • Local-First</span>
+      <!-- Hero -->
+      <span class="pill">Open Source &bull; macOS &bull; Apple Silicon &bull; Local-Only</span>
       <h1>CIO-II</h1>
       <p class="lead">
-        Intent-preserving typing assistance for macOS. Suggest-only by default, hard privacy
-        blocks, perfect undo, and an internal Apple FM on-chip arbiter for ambiguous gray-zone corrections.
+        Writing assistance powered by Apple's on-chip AI &mdash; not the cloud.
+        Watches you type, suggests corrections only when confident, and does nothing when uncertain.
       </p>
-      <p class="meta">Built for trust, reversibility, and auditable data minimization.</p>
+      <p class="meta">
+        The first open-source macOS application to use Apple's on-device Foundation Model
+        (<code class="inline-code">python-apple-fm-sdk</code> / <code class="inline-code">SystemLanguageModel</code>)
+        for real-time writing assistance.
+      </p>
 
-      <div class="hero-actions">
-        <a class="btn primary" href="https://github.com/deesatzed/CIO-II">GitHub Repository</a>
-        <a class="btn" href="./STARTUP_PROCEDURES.md">Startup Procedures</a>
-        <a class="btn" href="./TESTING_GUIDE.md">Testing Guide</a>
-        <a class="btn" href="./TEST_PLAN_FEATURE_MATRIX.md">Feature Test Plan</a>
-        <a class="btn" href="./REAL_WORLD_VALIDATION_PLAN.md">Real-World Validation</a>
-        <a class="btn" href="./PRODUCT_CONTRACT.md">Product Contract</a>
-        <a class="btn" href="./IMPLEMENTATION_ROADMAP.md">Roadmap</a>
-        <a class="btn" href="./BLOG_CIO_II_LAUNCH.md">Launch Blog Draft</a>
+      <div class="badge-row">
+        <span class="badge badge-green">331 tests passed</span>
+        <span class="badge badge-green">94% coverage</span>
+        <span class="badge badge-blue">No mocks</span>
+        <span class="badge badge-amber">v0.2.0</span>
       </div>
 
-      <section class="grid">
-        <article class="card span-6">
-          <h2>Main Benefit of Apple FM</h2>
-          <ul>
-            <li>Improves ambiguous-case precision when deterministic confidence is borderline.</li>
-            <li>Can only select from known local candidates or return do nothing.</li>
-            <li>Reduces wrong interventions without turning CIO-II into freeform autocomplete.</li>
-            <li>Keeps core trust model: local-first, reversible, and safety-gated.</li>
-          </ul>
-        </article>
+      <div class="hero-actions">
+        <a class="btn primary" href="https://github.com/deesatzed/CIO-II">View on GitHub</a>
+        <a class="btn" href="https://github.com/deesatzed/CIO-II#install">Install</a>
+        <a class="btn" href="./PRD.md">Product Requirements</a>
+        <a class="btn" href="./BLOG_CIO_II_LAUNCH.md">Launch Blog</a>
+      </div>
 
-        <article class="card span-6">
-          <h2>Why It Is Not Autocorrect</h2>
-          <ul>
-            <li>Default mode is suggest-only, not silent rewrite.</li>
-            <li>Unknown/code/terminal profiles fail safe to do nothing.</li>
-            <li>FM path can only pick known candidate IDs or do nothing.</li>
-            <li>Every applied change is reversible via undo records and hotkey.</li>
-          </ul>
-        </article>
+      <!-- Why -->
+      <section>
+        <h2>Why You Would Want This</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>No More Silent Rewrites</h3>
+            <p>CIO-II only suggests. You press Tab to accept or Esc to dismiss. It never changes text without showing you first.</p>
+          </div>
+          <div class="card">
+            <h3>Works Without Internet</h3>
+            <p>Everything runs on your Mac's neural engine. No API keys, no subscriptions, no data leaving your machine.</p>
+          </div>
+          <div class="card">
+            <h3>Knows When to Shut Up</h3>
+            <p>In code editors, terminals, password fields, and unknown apps &mdash; CIO-II does nothing. Backs off when you dismiss repeatedly.</p>
+          </div>
+          <div class="card">
+            <h3>Every Change Is Reversible</h3>
+            <p>Every accepted suggestion has a tracked undo record. Press <code class="inline-code">ctrl+option+z</code> to reverse instantly.</p>
+          </div>
+          <div class="card">
+            <h3>AI That Cannot Invent</h3>
+            <p>The Apple FM model can only pick from candidates CIO-II already identified &mdash; or return "do nothing." It never generates text.</p>
+          </div>
+          <div class="card">
+            <h3>Auditable by Design</h3>
+            <p>Proof reports, privacy ledger, explain-last diagnostics. You can always see exactly what CIO-II did and why.</p>
+          </div>
+        </div>
+      </section>
 
-        <article class="card span-6">
-          <h2>Privacy + Security Posture</h2>
-          <ul>
-            <li>Protected Mode hard-blocks sensitive fields and excluded apps.</li>
-            <li>Panic hotkey pauses capture and interventions instantly.</li>
-            <li>Ledger stores minimized events; no raw keystroke stream.</li>
-            <li>Core runtime path is local-only with no outbound network dependency.</li>
-          </ul>
-        </article>
+      <!-- Real Examples -->
+      <section>
+        <h2>Real Examples</h2>
 
-        <article class="card span-6">
-          <h2>Quick Start</h2>
-          <pre><code>git clone https://github.com/deesatzed/CIO-II.git
+        <div class="grid">
+          <div class="example-card">
+            <div class="scenario">Typo in Apple Mail</div>
+            <div class="action">You type: "I'll send <strong>teh</strong> report by end of day"</div>
+            <div class="result">CIO-II suggests: the &rarr; Press Tab to accept, Esc to dismiss</div>
+          </div>
+
+          <div class="example-card">
+            <div class="scenario">Ambiguous correction (Apple FM decides)</div>
+            <div class="action">You type "<strong>wierd</strong>" &mdash; two candidates: "weird" and "wired"</div>
+            <div class="result">Apple FM on neural engine picks "weird" from context in &lt;80ms. Or returns do_nothing if uncertain.</div>
+          </div>
+
+          <div class="example-card">
+            <div class="scenario">Code editor (VS Code, Xcode, PyCharm)</div>
+            <div class="action">You write: <code>def teh_function(): return wierd_value</code></div>
+            <div class="result">CIO-II does nothing. Code profile = hard do_nothing. Your identifiers are never touched.</div>
+          </div>
+
+          <div class="example-card">
+            <div class="scenario">Password field</div>
+            <div class="action">You click a login/password field in any browser</div>
+            <div class="result">Hard block. No capture, no suggestions. Menu bar shows CIO-P (protected).</div>
+          </div>
+
+          <div class="example-card">
+            <div class="scenario">Dot-phrase expansion</div>
+            <div class="action">You type <strong>.meW</strong> in an email</div>
+            <div class="result">Expands to your full work signature. Secret fields (email, phone) resolve at apply-time from env vars.</div>
+          </div>
+
+          <div class="example-card">
+            <div class="scenario">Trust circuit breaker</div>
+            <div class="action">You dismiss 3 suggestions in a row</div>
+            <div class="result">CIO-II stops suggesting. Menu bar shows cooldown countdown. Resumes later with recalibrated thresholds.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Requirements -->
+      <section>
+        <h2>Requirements</h2>
+        <table class="req-table">
+          <thead>
+            <tr>
+              <th>Requirement</th>
+              <th>Minimum</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Mac chip</td>
+              <td>Apple Silicon (M1/M2/M3/M4)</td>
+              <td>arm64 architecture required</td>
+            </tr>
+            <tr>
+              <td>macOS</td>
+              <td>26.0 or later</td>
+              <td>Required for Apple FM runtime</td>
+            </tr>
+            <tr>
+              <td>Xcode</td>
+              <td>26.0 or later (full install)</td>
+              <td>Command Line Tools alone is not enough</td>
+            </tr>
+            <tr>
+              <td>Python</td>
+              <td>3.11+</td>
+              <td>Tested on 3.11, 3.12, 3.13</td>
+            </tr>
+            <tr>
+              <td>uv</td>
+              <td>Any recent version</td>
+              <td>Python package installer</td>
+            </tr>
+            <tr>
+              <td>Apple Intelligence</td>
+              <td>Enabled in System Settings</td>
+              <td>Required for FM model availability</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="subtle" style="margin-top: 12px">
+          Without the Apple FM SDK, CIO-II works in deterministic-only mode &mdash; it blocks ambiguous cases instead of routing to the arbiter.
+        </p>
+      </section>
+
+      <!-- Install -->
+      <section>
+        <h2>Install</h2>
+        <pre><code>git clone https://github.com/deesatzed/CIO-II.git
 cd CIO-II
-uv venv .venv
-source .venv/bin/activate
-uv pip install -e ".[dev,mac]"
-./run_demo.sh</code></pre>
-        </article>
+./bootstrap.sh</code></pre>
+        <p class="subtle">
+          bootstrap.sh creates the venv, installs dependencies, clones and builds the Apple FM SDK, and verifies your platform.
+        </p>
 
-        <article class="card span-6">
-          <h2>Test Before You Announce</h2>
-          <pre><code>pytest -q
+        <h3 style="margin-top: 20px">Then try it</h3>
+        <pre><code># See all safety behaviors in a demo
 ./run_demo.sh
-PYTHONPATH=src python -m cognitiveio.cli proof-report
-PYTHONPATH=src python -m cognitiveio.cli health-card
-PYTHONPATH=src python -m cognitiveio.cli run --mode mac</code></pre>
-          <p class="subtle">
-            In native mode, verify menu bar status transitions: <code>CIO</code> →
-            <code>CIO-P</code> / <code>CIO-II</code>.
+
+# Start native macOS mode (menu bar, hotkeys, real-time suggestions)
+cio-ii run --mode mac</code></pre>
+        <p class="subtle">
+          macOS will ask you to grant Accessibility permission. Allow your terminal in System Settings &gt; Privacy &amp; Security &gt; Accessibility.
+        </p>
+      </section>
+
+      <!-- How It Works -->
+      <section>
+        <h2>How the Apple FM Arbiter Works</h2>
+        <div class="card" style="margin-top: 14px">
+          <pre><code>You type "wierd" in an email
+         |
+    Candidate search finds: "weird" (0.82) and "wired" (0.79)
+         |
+    Confidence gap too small for deterministic choice
+         |
+    Route to Apple FM on neural engine:
+    "Given context, which is correct? weird | wired | do_nothing"
+         |
+    FM responds within 80ms timeout
+         |
+    [weird] --> show suggestion     [do_nothing] --> show nothing
+         |
+    You press Tab or Esc</code></pre>
+          <p style="margin-top: 12px">
+            The FM model runs on your Mac's neural engine. It cannot invent text &mdash; it can only choose from the candidate list or return "do nothing."
+            If it exceeds the 80ms timeout, the answer is always do_nothing. This is the fail-closed safety guarantee.
           </p>
-        </article>
+        </div>
+      </section>
+
+      <!-- Verified Quality -->
+      <section>
+        <h2>Verified Quality</h2>
+        <table class="req-table">
+          <thead>
+            <tr>
+              <th>Gate</th>
+              <th>Status</th>
+              <th>Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Test suite</td><td>PASS</td><td>331 tests, 2 skipped (hardware-gated)</td></tr>
+            <tr><td>Code coverage</td><td>94%</td><td>No mocks &mdash; all tests use real SQLite</td></tr>
+            <tr><td>Lint (ruff)</td><td>PASS</td><td>All checks passed</td></tr>
+            <tr><td>Types (mypy)</td><td>PASS</td><td>No issues in 37 source files</td></tr>
+            <tr><td>Demo scenarios</td><td>PASS</td><td>7/7 episodes match expected outcomes</td></tr>
+            <tr><td>Mitigation verification</td><td>PASS</td><td>10/10 checks green</td></tr>
+            <tr><td>User journey validation</td><td>PASS</td><td>9/9 steps green</td></tr>
+            <tr><td>CI matrix</td><td>PASS</td><td>Python 3.11, 3.12, 3.13 on macOS</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Docs -->
+      <section>
+        <h2>Documentation</h2>
+        <div class="hero-actions">
+          <a class="btn" href="./PRD.md">Product Requirements</a>
+          <a class="btn" href="./PRODUCT_CONTRACT.md">Safety Contract</a>
+          <a class="btn" href="./FEATURE_MATRIX.md">Feature Matrix</a>
+          <a class="btn" href="./IMPLEMENTATION_ROADMAP.md">Roadmap</a>
+          <a class="btn" href="./STARTUP_PROCEDURES.md">Setup Guide</a>
+          <a class="btn" href="./TESTING_GUIDE.md">Testing Guide</a>
+          <a class="btn" href="./BLOG_CIO_II_LAUNCH.md">Launch Blog</a>
+        </div>
       </section>
 
       <footer>
-        CIO-II is a local-first, UX-first, reversible typing assistant for macOS.
+        CIO-II &mdash; Writing assistance powered by Apple's on-chip AI. Local-only. Trust-first. Open source.
+        <br />
+        <a href="https://github.com/deesatzed/CIO-II">github.com/deesatzed/CIO-II</a>
       </footer>
     </main>
   </body>
