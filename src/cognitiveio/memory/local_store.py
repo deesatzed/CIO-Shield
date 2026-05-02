@@ -137,6 +137,23 @@ class LocalStore:
             CREATE INDEX IF NOT EXISTS idx_secret_access_ts ON secret_access_events(ts DESC);
             CREATE INDEX IF NOT EXISTS idx_secret_alias_last_seen ON secret_alias_registry(last_seen DESC);
             CREATE INDEX IF NOT EXISTS idx_phrase_lookup ON phrase_patterns(phrase_before, profile, confidence DESC);
+            CREATE TABLE IF NOT EXISTS sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT UNIQUE NOT NULL,
+                start_ts REAL NOT NULL,
+                end_ts REAL,
+                warmth_state TEXT DEFAULT 'embryonic',
+                suggestions_shown INTEGER DEFAULT 0,
+                suggestions_accepted INTEGER DEFAULT 0,
+                suggestions_dismissed INTEGER DEFAULT 0,
+                undone INTEGER DEFAULT 0,
+                blocked INTEGER DEFAULT 0,
+                dominant_app TEXT DEFAULT '',
+                dominant_profile TEXT DEFAULT '',
+                meta_json TEXT DEFAULT '{}'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_ts DESC);
             CREATE INDEX IF NOT EXISTS idx_concept_lookup ON concept_lexicon(synonym, profile, confidence DESC);
             """
         )
@@ -778,6 +795,217 @@ class LocalStore:
             out.append(data)
         return out
 
+    # ------------------------------------------------------------------
+    # Compliance & retention (corporate shield)
+    # ------------------------------------------------------------------
+
+    def prune_by_retention(self, days: int) -> int:
+        """Delete privacy events and proof reports older than *days*.
+
+        Returns the total number of rows deleted across all pruned tables.
+        """
+        if days < 1:
+            return 0
+        cutoff = datetime.now().timestamp() - (days * 86400.0)
+        cur = self.conn.cursor()
+        total = 0
+
+        cur.execute("DELETE FROM privacy_events WHERE ts < ?", (cutoff,))
+        total += cur.rowcount or 0
+
+        cur.execute("DELETE FROM proof_reports WHERE ts < ?", (cutoff,))
+        total += cur.rowcount or 0
+
+        cur.execute("DELETE FROM secret_access_events WHERE ts < ?", (cutoff,))
+        total += cur.rowcount or 0
+
+        self.conn.commit()
+        return total
+
+    def export_compliance_report(
+        self,
+        output_path: Path,
+        *,
+        include_pattern_stats: bool = True,
+        include_secret_registry: bool = True,
+        include_block_reasons: bool = True,
+    ) -> Dict[str, Any]:
+        """Generate a redacted compliance report (no secret values, ever).
+
+        The report contains only categorical/aggregate data suitable for
+        corporate audit. Written to *output_path* as JSON.
+        """
+        import hashlib
+        import platform
+
+        report: Dict[str, Any] = {
+            "schema_version": 1,
+            "generated_at": datetime.now().isoformat(),
+            "machine_id_hash": hashlib.sha256(
+                platform.node().encode("utf-8")
+            ).hexdigest()[:16],
+        }
+
+        # Block reason summary.
+        if include_block_reasons:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT reason, COUNT(*) AS cnt
+                FROM privacy_events
+                WHERE kind = 'blocked'
+                GROUP BY reason
+                ORDER BY cnt DESC
+                """
+            )
+            report["block_reasons"] = [
+                {"reason": str(r["reason"]), "count": int(r["cnt"])}
+                for r in cur.fetchall()
+            ]
+
+        # Pattern lifecycle distribution.
+        if include_pattern_stats:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT lifecycle_state, COUNT(*) AS cnt
+                FROM error_patterns
+                GROUP BY lifecycle_state
+                """
+            )
+            report["pattern_lifecycle"] = {
+                str(r["lifecycle_state"] or "embryonic"): int(r["cnt"])
+                for r in cur.fetchall()
+            }
+
+        # Secret alias names + usage counts (NEVER values).
+        if include_secret_registry:
+            report["secret_aliases"] = [
+                {"alias": a["alias"], "usage_count": a["usage_count"]}
+                for a in self.list_secret_aliases(limit=1000)
+            ]
+
+        # Accept / dismiss / undo rates from latest proof report.
+        latest = self.latest_proof_report()
+        if latest:
+            report["rates"] = {
+                "accept_rate": float(latest.get("accept_rate", 0.0)),
+                "dismiss_rate": float(latest.get("dismiss_rate", 0.0)),
+                "undo_rate": float(latest.get("undo_rate", 0.0)),
+            }
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(report, indent=2), encoding="utf-8"
+        )
+        return report
+
+    # ── Session management ──────────────────────────────────────────
+
+    WARMUP_SUGGESTION_THRESHOLD = 15
+    WARMUP_ACCEPT_RATE_MIN = 0.35
+
+    @staticmethod
+    def derive_warmth_state(
+        suggestions_shown: int, suggestions_accepted: int
+    ) -> str:
+        """Derive warmth state from session metrics.
+
+        - embryonic: fewer than WARMUP_SUGGESTION_THRESHOLD suggestions
+        - learning: threshold met but accept rate below WARMUP_ACCEPT_RATE_MIN
+        - mature: threshold met and accept rate >= WARMUP_ACCEPT_RATE_MIN
+        """
+        if suggestions_shown < LocalStore.WARMUP_SUGGESTION_THRESHOLD:
+            return "embryonic"
+        accept_rate = suggestions_accepted / max(suggestions_shown, 1)
+        if accept_rate >= LocalStore.WARMUP_ACCEPT_RATE_MIN:
+            return "mature"
+        return "learning"
+
+    def start_session(self, session_id: str) -> None:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO sessions (session_id, start_ts)
+            VALUES (?, ?)
+            """,
+            (session_id, datetime.now().timestamp()),
+        )
+        self.conn.commit()
+
+    def update_session(
+        self,
+        session_id: str,
+        *,
+        suggestions_shown: int = 0,
+        suggestions_accepted: int = 0,
+        suggestions_dismissed: int = 0,
+        undone: int = 0,
+        blocked: int = 0,
+        dominant_app: str = "",
+        dominant_profile: str = "",
+    ) -> None:
+        warmth = self.derive_warmth_state(suggestions_shown, suggestions_accepted)
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            UPDATE sessions
+            SET suggestions_shown=?, suggestions_accepted=?,
+                suggestions_dismissed=?, undone=?, blocked=?,
+                dominant_app=?, dominant_profile=?,
+                warmth_state=?
+            WHERE session_id=?
+            """,
+            (
+                suggestions_shown, suggestions_accepted,
+                suggestions_dismissed, undone, blocked,
+                dominant_app, dominant_profile,
+                warmth, session_id,
+            ),
+        )
+        self.conn.commit()
+
+    def end_session(self, session_id: str) -> None:
+        cur = self.conn.cursor()
+        cur.execute(
+            "UPDATE sessions SET end_ts=? WHERE session_id=?",
+            (datetime.now().timestamp(), session_id),
+        )
+        self.conn.commit()
+
+    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute("SELECT * FROM sessions WHERE session_id=?", (session_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        return dict(row)
+
+    def list_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT * FROM sessions ORDER BY start_ts DESC LIMIT ?", (limit,)
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+    def session_count(self) -> int:
+        cur = self.conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM sessions")
+        return int(cur.fetchone()[0])
+
+    def overall_warmth_state(self) -> str:
+        """Derive the overall warmth state across all sessions.
+
+        Considers the last 5 sessions to determine the user's overall
+        comfort level with the system.
+        """
+        recent = self.list_sessions(limit=5)
+        if not recent:
+            return "embryonic"
+        total_shown = sum(s.get("suggestions_shown", 0) for s in recent)
+        total_accepted = sum(s.get("suggestions_accepted", 0) for s in recent)
+        return self.derive_warmth_state(total_shown, total_accepted)
+
     def delete_all(self) -> None:
         cur = self.conn.cursor()
         cur.execute("DELETE FROM error_patterns")
@@ -787,6 +1015,7 @@ class LocalStore:
         cur.execute("DELETE FROM secret_alias_registry")
         cur.execute("DELETE FROM phrase_patterns")
         cur.execute("DELETE FROM concept_lexicon")
+        cur.execute("DELETE FROM sessions")
         self.conn.commit()
 
     def close(self) -> None:

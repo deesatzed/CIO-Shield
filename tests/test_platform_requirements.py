@@ -231,3 +231,53 @@ def test_xcodebuild_failure():
     xcode_row = next(r for r in report.checks if r.name == "Xcode version")
     assert xcode_row.passed is False
     assert "xcodebuild" in xcode_row.details.lower() or "failed" in xcode_row.details.lower()
+
+
+def test_xcodebuild_not_in_path_forced(monkeypatch):
+    """Force xcodebuild not in PATH via monkeypatch to cover line 150."""
+    import shutil as _shutil
+    import cognitiveio.platform_requirements as pr_mod
+
+    original_which = _shutil.which
+    def _which_no_xcodebuild(name):
+        if name == "xcodebuild":
+            return None
+        return original_which(name)
+
+    monkeypatch.setattr(pr_mod.shutil, "which", _which_no_xcodebuild)
+
+    runner = _runner_factory({
+        ("sw_vers", "-productVersion"): (True, "26.1", ""),
+        ("xcode-select", "-p"): (True, "/Applications/Xcode.app/Contents/Developer", ""),
+    })
+    report = evaluate_platform_requirements(
+        runner=runner,
+        fm_probe=lambda: (True, "available"),
+        system_name="Darwin",
+        machine_arch="arm64",
+    )
+    xcode_row = next(r for r in report.checks if r.name == "Xcode version")
+    assert xcode_row.passed is False
+    assert "not found in PATH" in xcode_row.details
+
+
+def test_default_runner_file_not_found():
+    """_default_runner returns (False, '', 'not found') for missing command."""
+    from cognitiveio.platform_requirements import _default_runner
+    ok, out, err = _default_runner(["__nonexistent_command_xyz_999__"])
+    assert ok is False
+    assert err == "not found"
+
+
+def test_default_runner_generic_exception(monkeypatch):
+    """_default_runner handles generic exceptions."""
+    import subprocess
+    from cognitiveio.platform_requirements import _default_runner
+
+    def _raise_exc(*a, **kw):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(subprocess, "run", _raise_exc)
+    ok, out, err = _default_runner(["ls"])
+    assert ok is False
+    assert "denied" in err

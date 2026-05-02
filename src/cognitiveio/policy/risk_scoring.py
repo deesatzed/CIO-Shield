@@ -18,6 +18,8 @@ def assess_risk(profile: str, flags: RiskFlags) -> RiskAssessment:
         return RiskAssessment(1.0, "password_field")
     if flags.blacklisted_app or flags.user_excluded:
         return RiskAssessment(1.0, "excluded_app")
+    if profile == "blocked_by_policy":
+        return RiskAssessment(1.0, "corporate_policy_block")
     if profile == "unknown":
         return RiskAssessment(0.9, "unknown_profile")
     if flags.detector_uncertain:

@@ -470,6 +470,128 @@ def test_no_replacement_selected_path(tmp_path: Path, monkeypatch):
     assert "No replacement selected" in out.message
 
 
+def test_adaptive_idle_blocks_fast_typist(tmp_path: Path):
+    """Fast typists get a higher effective idle threshold (1.5x by default)."""
+    runtime = _runtime(tmp_path, idle_pause_ms=300, adaptive_idle_enabled=True)
+    # 350ms idle with typing_fast=True -> effective threshold is 300*1.5=450ms -> blocked
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(
+                kind="boundary", app_name="Mail", token="teh", boundary=" ",
+                idle_ms=350, typing_fast=True,
+            )
+        )
+    )
+    assert out.action == "do_nothing"
+    assert "idle" in out.message.lower() or "Idle threshold" in out.message
+
+
+def test_adaptive_idle_allows_slow_typist(tmp_path: Path):
+    """Slow typists use the base idle threshold — 350ms > 300ms should pass."""
+    runtime = _runtime(tmp_path, idle_pause_ms=300, adaptive_idle_enabled=True)
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(
+                kind="boundary", app_name="Mail", token="teh", boundary=" ",
+                idle_ms=350, typing_fast=False,
+            )
+        )
+    )
+    assert out.action == "suggest"
+
+
+def test_adaptive_idle_disabled_uses_base(tmp_path: Path):
+    """When adaptive_idle_enabled=False, fast typists use the base threshold for idle check.
+
+    Note: typing_fast also triggers a separate block in the decision engine,
+    so we test with typing_fast=False to isolate the idle threshold behavior.
+    """
+    runtime = _runtime(tmp_path, idle_pause_ms=300, adaptive_idle_enabled=False)
+    # 350ms > 300ms base and typing_fast=False -> passes idle check
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(
+                kind="boundary", app_name="Mail", token="teh", boundary=" ",
+                idle_ms=350, typing_fast=False,
+            )
+        )
+    )
+    assert out.action == "suggest"
+
+    # Now verify that with adaptive enabled and typing_fast=True,
+    # 350ms < 450ms (300*1.5), so idle check blocks it
+    runtime2 = _runtime(tmp_path, idle_pause_ms=300, adaptive_idle_enabled=True)
+    out2 = asyncio.run(
+        runtime2.process_event(
+            RuntimeEvent(
+                kind="boundary", app_name="Mail", token="teh", boundary=" ",
+                idle_ms=350, typing_fast=True,
+            )
+        )
+    )
+    assert out2.action == "do_nothing"
+
+
+def test_status_hint_paused(tmp_path: Path):
+    """Paused state should produce a 'Paused' status hint."""
+    runtime = _runtime(tmp_path)
+    asyncio.run(runtime.process_event(RuntimeEvent(kind="panic")))  # pause
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)
+        )
+    )
+    assert out.status_hint == "Paused"
+
+
+def test_status_hint_no_match(tmp_path: Path):
+    """No local candidates should produce 'No match' status hint."""
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="zzzzz_none", boundary=" ", idle_ms=400)
+        )
+    )
+    assert out.status_hint == "No match"
+
+
+def test_status_hint_protected_field(tmp_path: Path):
+    """Password field should produce 'Protected field' status hint."""
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(
+                kind="boundary", app_name="Mail", token="teh", boundary=" ",
+                idle_ms=400, flags=RiskFlags(password_field=True),
+            )
+        )
+    )
+    assert out.status_hint == "Protected field"
+
+
+def test_status_hint_empty_on_suggest(tmp_path: Path):
+    """Suggest action should have no status hint."""
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Mail", token="teh", boundary=" ", idle_ms=400)
+        )
+    )
+    assert out.action == "suggest"
+    assert out.status_hint == ""
+
+
+def test_status_hint_code_profile(tmp_path: Path):
+    """Code editor apps should produce 'Code/terminal' status hint."""
+    runtime = _runtime(tmp_path)
+    out = asyncio.run(
+        runtime.process_event(
+            RuntimeEvent(kind="boundary", app_name="Visual Studio Code", token="teh", boundary=" ", idle_ms=400)
+        )
+    )
+    assert out.status_hint == "Code/terminal"
+
+
 def test_auto_apply_path(tmp_path: Path, monkeypatch):
     """When decide() returns auto_apply with valid replacement, runtime auto-applies."""
     from cognitiveio.core.decision_engine import Decision

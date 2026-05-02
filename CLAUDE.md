@@ -63,6 +63,7 @@ cio-ii schema-check            # DB schema validation
 cio-ii explain-last            # Last runtime decision
 cio-ii seed-language-assets    # Seed typo/concept/phrase data
 cio-ii delete-all --confirm    # Factory reset
+cio-ii session-status          # Session history with warmth state
 ```
 
 ## Architecture
@@ -168,7 +169,7 @@ COGNITIVEIO_SECRET_*=...                   # Env-backed secret provider values
 
 ## Testing Patterns
 
-**331 tests | 94% measured coverage | 26 modules at 100% | no mocks**
+**518 tests | 94% measured coverage | 26 modules at 100% | no mocks**
 
 - `conftest.py` sets `COGNITIVEIO_HOME` to `.cognitiveio_test` and inserts `src/` into `sys.path`
 - `asyncio_mode = "auto"` in pyproject.toml — async tests run automatically
@@ -180,8 +181,8 @@ COGNITIVEIO_SECRET_*=...                   # Env-backed secret provider values
 | File | Tests | Coverage Target |
 |------|-------|-----------------|
 | `test_invariants.py` | 21 | Product contract invariants, decision engine paths |
-| `test_runtime_flow.py` | 25 | Runtime state machine, boundary events, trust circuit |
-| `test_cli.py` | 36 | CLI commands via `typer.testing.CliRunner` |
+| `test_runtime_flow.py` | 40 | Runtime state machine, boundary events, trust circuit, adaptive idle, status hints |
+| `test_cli.py` | 52 | CLI commands via `typer.testing.CliRunner` |
 | `test_local_store_extended.py` | 42 | SQLite CRUD, lifecycle, privacy ledger, phrases |
 | `test_config.py` | 17 | Settings, env overrides, resolve_app_home |
 | `test_text_apply_policy.py` | 28 | Apply/undo policy, secret resolution, bridge failures |
@@ -191,14 +192,18 @@ COGNITIVEIO_SECRET_*=...                   # Env-backed secret provider values
 | `test_reporting.py` | 15 | Proof reports, health cards, trend rendering |
 | `test_protected_context.py` | 11 | Protected context detection, exclusion files |
 | `test_profiles.py` | 8 | Profile classification, overrides |
-| `test_platform_requirements.py` | 13 | Platform checks via injected runner/probe |
+| `test_platform_requirements.py` | 17 | Platform checks via injected runner/probe |
 | `test_fm_arbiter_unit.py` | 7 | FM arbiter non-live paths, validation |
 | `test_vault_resolver_extended.py` | 14 | Secret vault, resolver cache, composite providers |
 | `test_app_context.py` | 3 | Frozen dataclass construction |
 | `test_ab_testing.py` | 6 | A/B variant assignment |
 | `test_no_network.py` | 1 | No network in core path |
 | `test_memory_lifecycle.py` | 2 | Pattern lifecycle basics |
-| `tests/security/` | 11 | Encryption, redaction, alias resolution |
+| `test_corporate_policy.py` | 47 | Corporate policy loading, merge, expiry |
+| `test_audit_writer.py` | 41 | Audit events, HMAC, writer backends |
+| `test_compliance_export.py` | 10 | Compliance report format and redaction |
+| `test_session_profile.py` | 24 | Session tracking, warmth state, onboarding |
+| `tests/security/` | 41 | Encryption, redaction (21 patterns), alias resolution, loader |
 | `tests/language/` | 13 | Phrase memory, concept lexicon, asset seeding |
 
 ### Intentionally Uncovered (hardware-dependent)

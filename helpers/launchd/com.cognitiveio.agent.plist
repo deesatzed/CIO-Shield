@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent for CIO-II Shield.
+  Deployed by corporate MDM to /Library/LaunchAgents/
+  Keeps CIO-II running as the logged-in user with KeepAlive.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.cognitiveio.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/cio-ii</string>
+        <string>run</string>
+        <string>--mode</string>
+        <string>auto</string>
+        <string>--skip-preflight</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/cio-ii-agent.out</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/cio-ii-agent.err</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>

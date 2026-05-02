@@ -20,16 +20,16 @@ Deliverables:
 - [x] Add explicit trust-circuit sections in demo script.
 
 ## Sprint 2: UX Kernel
-- [ ] Maintain ghost suggestion only at boundary + idle.
-- [ ] Tighten intervention budget adaptively by typing speed.
+- [x] Maintain ghost suggestion only at boundary + idle.
+- [x] Tighten intervention budget adaptively by typing speed.
 - [x] Expand negative learning to include undo-weighted penalty.
-- [ ] Add quick user-facing “why no suggestion” status hints.
+- [x] Add quick user-facing “why no suggestion” status hints.
 
 ## Sprint 3: Learning Lifecycle
 - [x] Add per-pattern lifecycle states (embryonic, viable, thriving, declining).
 - [x] Promote only repeated successful patterns.
 - [x] Decay stale patterns over time.
-- [ ] Keep all learning local and encrypted-at-rest compatible.
+- [x] Keep all learning local and encrypted-at-rest compatible.
 
 ## Sprint 4: FM-First Arbiter + Proof
 - [x] Make FM path ON by default for gray-zone security.

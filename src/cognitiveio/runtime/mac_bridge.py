@@ -565,6 +565,8 @@ class MacRuntimeBridge:
                     self.presenter.hide()
                     if out.protected_mode:
                         self._set_status_text("Protected Mode Active - no capture, no suggestions.")
+                    elif out.status_hint:
+                        self._set_status_text(out.status_hint)
                 if out.action in {"suggest", "accept", "dismiss", "undo"} or "Protected Mode" in out.message:
                     print(out.message)
                 return event

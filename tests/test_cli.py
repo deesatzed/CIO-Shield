@@ -39,6 +39,15 @@ def cli_env(tmp_path: Path, monkeypatch):
         return Settings(app_home=tmp_path, apple_fm_enabled=False)
 
     monkeypatch.setattr(cli_module, "settings_from_env", _patched_settings)
+
+    # Patch settings_from_env_with_policy for new Shield commands.
+    def _patched_settings_with_policy():
+        from cognitiveio.policy.corporate import load_corporate_policy
+        s = Settings(app_home=tmp_path, apple_fm_enabled=False)
+        p = load_corporate_policy()
+        return s, p
+
+    monkeypatch.setattr(cli_module, "settings_from_env_with_policy", _patched_settings_with_policy)
     return tmp_path
 
 
@@ -562,3 +571,231 @@ def test_requirements_check_strict_with_failing_report(cli_env, monkeypatch):
     monkeypatch.setattr(cli_module, "evaluate_platform_requirements", lambda: failing_report)
     result = runner.invoke(app, ["requirements-check", "--strict"])
     assert result.exit_code == 1
+
+
+# ── Corporate Shield CLI commands ──────────────────────────────────
+
+
+def test_policy_status_individual(cli_env, monkeypatch):
+    """policy-status shows individual tier when no policy file exists."""
+    monkeypatch.delenv("COGNITIVEIO_CORPORATE_POLICY", raising=False)
+    result = runner.invoke(app, ["policy-status"])
+    assert result.exit_code == 0
+    assert "individual" in result.output
+
+
+def test_policy_status_corporate(cli_env, tmp_path, monkeypatch):
+    """policy-status shows corporate tier when policy file is present."""
+    policy_file = tmp_path / "corp_policy.json"
+    policy_file.write_text(json.dumps({
+        "schema_version": 1,
+        "organization_id": "acme",
+        "organization_name": "Acme Corp",
+        "policy_expires_at": "2027-01-01T00:00:00Z",
+        "profile_mandates": {"force_blocked_apps": ["ChatGPT"]},
+    }), encoding="utf-8")
+    monkeypatch.setenv("COGNITIVEIO_CORPORATE_POLICY", str(policy_file))
+    result = runner.invoke(app, ["policy-status"])
+    assert result.exit_code == 0
+    assert "corporate" in result.output
+    assert "Acme Corp" in result.output
+    assert "ChatGPT" in result.output
+
+
+def test_compliance_export_command(cli_env):
+    """compliance-export generates a valid JSON report."""
+    _seed_store(cli_env).close()
+    out_path = cli_env / "compliance_test.json"
+    result = runner.invoke(app, ["compliance-export", "--output", str(out_path)])
+    assert result.exit_code == 0
+    assert "Compliance report saved" in result.output
+    assert out_path.exists()
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert data["schema_version"] == 1
+    assert "machine_id_hash" in data
+
+
+def test_retention_prune_dry_run(cli_env):
+    """retention-prune --dry-run shows counts without deleting."""
+    _seed_store(cli_env).close()
+    result = runner.invoke(app, ["retention-prune", "--dry-run"])
+    assert result.exit_code == 0
+    assert "DRY RUN" in result.output
+
+
+def test_retention_prune_execute(cli_env):
+    """retention-prune --execute actually prunes."""
+    _seed_store(cli_env).close()
+    result = runner.invoke(app, ["retention-prune", "--execute", "--days", "1"])
+    assert result.exit_code == 0
+    assert "Pruned" in result.output
+
+
+def test_retention_prune_no_policy(cli_env, monkeypatch):
+    """retention-prune with days=0 and no policy shows message."""
+    monkeypatch.delenv("COGNITIVEIO_CORPORATE_POLICY", raising=False)
+    # Need to patch settings_from_env_with_policy to return individual policy with 0 retention
+    from cognitiveio.policy.corporate import PolicyConstraints, RetentionPolicy
+    def _patched():
+        from cognitiveio.config import Settings
+        s = Settings(app_home=cli_env, apple_fm_enabled=False)
+        p = PolicyConstraints(retention=RetentionPolicy(audit_retention_days=0))
+        return s, p
+    monkeypatch.setattr(cli_module, "settings_from_env_with_policy", _patched)
+    result = runner.invoke(app, ["retention-prune", "--dry-run"])
+    assert result.exit_code == 0
+    assert "No retention policy" in result.output
+
+
+def test_audit_status_command(cli_env, monkeypatch):
+    """audit-status shows audit trail health."""
+    monkeypatch.delenv("COGNITIVEIO_CORPORATE_POLICY", raising=False)
+    result = runner.invoke(app, ["audit-status"])
+    assert result.exit_code == 0
+    assert "Audit Trail Status" in result.output
+    assert "individual" in result.output
+
+
+def test_policy_status_corporate_full(cli_env, tmp_path, monkeypatch):
+    """policy-status with full corporate policy shows locked settings, bundles, and hooks."""
+    policy_file = tmp_path / "full_policy.json"
+    policy_file.write_text(json.dumps({
+        "schema_version": 1,
+        "organization_id": "full-corp",
+        "organization_name": "Full Corp",
+        "policy_expires_at": "2027-01-01T00:00:00Z",
+        "settings_overrides": {"db_encryption_mode": "required", "suggest_only": True},
+        "profile_mandates": {
+            "force_blocked_apps": ["ChatGPT"],
+            "force_blocked_bundles": ["com.openai.chatgpt"],
+        },
+        "hooks": {"post_session_script": "/usr/local/bin/test.sh"},
+    }), encoding="utf-8")
+    monkeypatch.setenv("COGNITIVEIO_CORPORATE_POLICY", str(policy_file))
+    result = runner.invoke(app, ["policy-status"])
+    assert result.exit_code == 0
+    assert "Full Corp" in result.output
+    assert "db_encryption_mode" in result.output
+    assert "com.openai.chatgpt" in result.output
+    assert "/usr/local/bin/test.sh" in result.output
+
+
+def test_run_headless_with_policy(cli_env, monkeypatch):
+    """run command in headless mode shows Shield tier."""
+    monkeypatch.setattr("builtins.input", lambda _prompt="": "")
+    result = runner.invoke(app, ["run", "--mode", "headless"])
+    assert result.exit_code == 0
+    assert "Shield" in result.output
+    assert "Saved report" in result.output
+
+
+def test_audit_status_with_files(cli_env, monkeypatch):
+    """audit-status shows PASS integrity when audit files exist."""
+    from cognitiveio.audit.writer import LocalAuditBackend
+    from cognitiveio.policy.corporate import PolicyConstraints
+    import cognitiveio.policy.corporate as corp_mod
+
+    monkeypatch.delenv("COGNITIVEIO_CORPORATE_POLICY", raising=False)
+    audit_dir = cli_env / "audit"
+
+    # Write a real audit event so files exist.
+    backend = LocalAuditBackend(audit_dir=audit_dir)
+    backend.append('{"event":"test"}')
+
+    # Patch load_corporate_policy in the module it's imported from.
+    policy = PolicyConstraints()
+    monkeypatch.setattr(corp_mod, "load_corporate_policy", lambda: policy)
+
+    # Patch the AuditWriter class in the cli module.
+    import cognitiveio.audit.writer as aw_mod
+    OrigWriter = aw_mod.AuditWriter
+    class PatchedAuditWriter(OrigWriter):
+        def __init__(self, p, **kw):
+            super().__init__(p, audit_dir=audit_dir, **kw)
+    monkeypatch.setattr(aw_mod, "AuditWriter", PatchedAuditWriter)
+
+    result = runner.invoke(app, ["audit-status"])
+    assert result.exit_code == 0
+    assert "PASS" in result.output
+    assert ".jsonl" in result.output
+
+
+def test_audit_status_last_write_with_timestamp(cli_env, monkeypatch):
+    """audit-status shows Last Write timestamp when audit files exist."""
+    from cognitiveio.audit.writer import LocalAuditBackend
+    from cognitiveio.policy.corporate import PolicyConstraints
+    import cognitiveio.policy.corporate as corp_mod
+
+    monkeypatch.delenv("COGNITIVEIO_CORPORATE_POLICY", raising=False)
+    audit_dir = cli_env / "audit_ts"
+
+    backend = LocalAuditBackend(audit_dir=audit_dir)
+    backend.append('{"event":"test_ts"}')
+
+    policy = PolicyConstraints()
+    monkeypatch.setattr(corp_mod, "load_corporate_policy", lambda: policy)
+
+    import cognitiveio.audit.writer as aw_mod
+    OrigWriter = aw_mod.AuditWriter
+    class PatchedAuditWriter(OrigWriter):
+        def __init__(self, p, **kw):
+            super().__init__(p, audit_dir=audit_dir, **kw)
+    monkeypatch.setattr(aw_mod, "AuditWriter", PatchedAuditWriter)
+
+    result = runner.invoke(app, ["audit-status"])
+    assert result.exit_code == 0
+    # Should show a real timestamp, not "(no files)"
+    assert "(no files)" not in result.output
+    assert "Last Write" in result.output
+
+
+def test_compliance_export_with_block_reasons(cli_env, monkeypatch):
+    """compliance-export shows block reason table when data has block reasons."""
+    store = _seed_store(cli_env)
+    # Log several block events to generate block_reasons in the export.
+    for _ in range(3):
+        store.log_privacy_event(kind="blocked", reason="corporate_policy_block")
+    for _ in range(2):
+        store.log_privacy_event(kind="blocked", reason="password_field")
+    store.close()
+    out_path = cli_env / "compliance_reasons.json"
+    result = runner.invoke(app, ["compliance-export", "--output", str(out_path)])
+    assert result.exit_code == 0
+    assert "Compliance report saved" in result.output
+
+
+def test_get_store_function(cli_env):
+    """Test _get_store returns a real store and settings tuple."""
+    store, settings = cli_module._get_store()
+    assert store is not None
+    assert hasattr(settings, "app_home")
+    store.close()
+
+
+def test_run_headless_corporate_mode(cli_env, tmp_path, monkeypatch):
+    """run command shows corporate tier and prunes on startup."""
+    policy_file = tmp_path / "corp_run.json"
+    policy_file.write_text(json.dumps({
+        "schema_version": 1,
+        "organization_id": "corp-run",
+        "organization_name": "Run Corp",
+        "policy_expires_at": "2027-01-01T00:00:00Z",
+        "retention_policy": {
+            "audit_retention_days": 90,
+            "prune_on_startup": True,
+        },
+    }), encoding="utf-8")
+    monkeypatch.setenv("COGNITIVEIO_CORPORATE_POLICY", str(policy_file))
+
+    def _patched_settings_with_policy():
+        from cognitiveio.policy.corporate import load_corporate_policy
+        s = Settings(app_home=cli_env, apple_fm_enabled=False)
+        p = load_corporate_policy()
+        return s, p
+
+    monkeypatch.setattr(cli_module, "settings_from_env_with_policy", _patched_settings_with_policy)
+    monkeypatch.setattr("builtins.input", lambda _prompt="": "")
+    result = runner.invoke(app, ["run", "--mode", "headless"])
+    assert result.exit_code == 0
+    assert "Corporate" in result.output
+    assert "Run Corp" in result.output

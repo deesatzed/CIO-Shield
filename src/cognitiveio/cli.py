@@ -9,7 +9,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from cognitiveio.config import settings_from_env
+from cognitiveio.audit.events import SessionSummaryEvent
+from cognitiveio.audit.writer import AuditWriter
+from cognitiveio.config import settings_from_env, settings_from_env_with_policy
 from cognitiveio.demo.demo_runner import run_demo
 from cognitiveio.evidence.health_card import build_health_card, render_health_card
 from cognitiveio.evidence.report_generator import (
@@ -151,14 +153,27 @@ def run(
     skip_preflight: bool = typer.Option(False, "--skip-preflight", help="Skip platform requirement checks."),
 ):
     """Run local runtime in macOS event-tap mode or headless mode."""
-    settings = settings_from_env()
+    settings, policy = settings_from_env_with_policy()
     store = _build_store(settings)
-    runtime = AppRuntime(settings=settings, store=store)
+    runtime = AppRuntime(settings=settings, store=store, policy=policy)
+    audit_writer = AuditWriter(policy)
+
+    if policy.is_corporate:
+        console.print(f"[bold]CIO-II Shield[/bold] Corporate: {policy.organization_name}")
+    else:
+        console.print("[bold]CIO-II Shield[/bold] Individual tier")
+
     console.print(
         f"FM arbiter: enabled={settings.apple_fm_enabled} variant={settings.apple_fm_variant} "
         f"required_for_gray_zone={settings.fm_required_for_gray_zone} "
         "(on-chip selector-only)"
     )
+
+    # Corporate retention pruning on startup.
+    if policy.is_corporate and policy.retention.prune_on_startup:
+        pruned = store.prune_by_retention(policy.retention.audit_retention_days)
+        if pruned > 0:
+            console.print(f"Pruned {pruned} events (retention: {policy.retention.audit_retention_days} days)")
 
     selected_mode = mode.lower().strip()
     if selected_mode not in {"auto", "mac", "headless"}:
@@ -198,6 +213,28 @@ def run(
         out_path = settings.report_dir / "latest_run_report.json"
         out_path.write_text(json.dumps(report_dict, indent=2), encoding="utf-8")
         console.print(f"Saved report: {out_path}")
+
+        # Log session summary to audit trail.
+        try:
+            audit_writer.log_event(SessionSummaryEvent(
+                accept_rate=float(report_dict.get("accept_rate", 0.0)),
+                blocks=int(report_dict.get("blocked", 0)),
+                redactions=0,
+            ))
+        except Exception:
+            pass
+        audit_writer.close()
+
+        # Run corporate post-session hook if configured.
+        if policy.is_corporate and policy.hooks.post_session_script:
+            import subprocess
+            script = policy.hooks.post_session_script
+            if Path(script).is_file():
+                try:
+                    subprocess.run([script], timeout=30, check=False)
+                except Exception:
+                    pass
+
         store.close()
 
 
@@ -567,6 +604,214 @@ def phrase_remove(
             raise typer.Exit(code=1)
         scope = "*" if all_profiles else (p or "*")
         console.print(f"Removed {removed} phrase pattern(s) for trigger='{trigger}' profile='{scope}'.")
+    finally:
+        store.close()
+
+
+@app.command("policy-status")
+def policy_status():
+    """Show current CIO-II Shield tier, organization, and policy details."""
+    from cognitiveio.policy.corporate import load_corporate_policy
+
+    policy = load_corporate_policy()
+    table = Table(title="CIO-II Shield Policy Status")
+    table.add_column("Setting")
+    table.add_column("Value")
+
+    table.add_row("Tier", policy.tier)
+    table.add_row("Organization ID", policy.organization_id or "(none)")
+    table.add_row("Organization Name", policy.organization_name or "(none)")
+    table.add_row("Schema Version", str(policy.schema_version))
+    table.add_row("Issued At", policy.policy_issued_at or "(none)")
+    table.add_row("Expires At", policy.policy_expires_at or "(none)")
+    table.add_row("Expired", str(policy.is_expired))
+
+    if policy.locked_settings:
+        table.add_row("Locked Settings", json.dumps(policy.locked_settings, indent=2))
+    else:
+        table.add_row("Locked Settings", "(none)")
+
+    if policy.force_blocked_apps:
+        table.add_row("Force-Blocked Apps", ", ".join(sorted(policy.force_blocked_apps)))
+    else:
+        table.add_row("Force-Blocked Apps", "(none)")
+
+    if policy.force_blocked_bundles:
+        table.add_row("Force-Blocked Bundles", ", ".join(sorted(policy.force_blocked_bundles)))
+    else:
+        table.add_row("Force-Blocked Bundles", "(none)")
+
+    table.add_row("Additional Secret Patterns", str(len(policy.additional_secret_patterns)))
+    table.add_row("Retention Days", str(policy.retention.audit_retention_days))
+    table.add_row("Prune on Startup", str(policy.retention.prune_on_startup))
+    table.add_row("Compliance Export", str(policy.compliance.enabled))
+
+    if policy.hooks.post_session_script:
+        table.add_row("Post-Session Hook", policy.hooks.post_session_script)
+
+    # Audit path.
+    audit_writer = AuditWriter(policy)
+    table.add_row("Audit Path", str(audit_writer.audit_dir))
+    audit_writer.close()
+
+    console.print(table)
+
+
+@app.command("compliance-export")
+def compliance_export(
+    output: str = typer.Option("", "--output", help="Output path for compliance JSON."),
+):
+    """Generate a redacted compliance report from local data."""
+    settings, policy = settings_from_env_with_policy()
+    store = _build_store(settings)
+    try:
+        out_path = Path(output).expanduser() if output else settings.report_dir / "compliance_report.json"
+        report = store.export_compliance_report(
+            out_path,
+            include_pattern_stats=policy.compliance.include_pattern_stats,
+            include_secret_registry=policy.compliance.include_secret_registry,
+            include_block_reasons=policy.compliance.include_block_reasons,
+        )
+        console.print(f"Compliance report saved: {out_path}")
+        console.print(f"Machine ID hash: {report.get('machine_id_hash', 'N/A')}")
+        block_reasons = report.get("block_reasons", [])
+        if block_reasons:
+            table = Table(title="Block Reason Summary")
+            table.add_column("Reason")
+            table.add_column("Count")
+            for br in block_reasons:
+                table.add_row(str(br["reason"]), str(br["count"]))
+            console.print(table)
+    finally:
+        store.close()
+
+
+@app.command("retention-prune")
+def retention_prune(
+    dry_run: bool = typer.Option(True, "--dry-run/--execute", help="Preview or execute pruning."),
+    days: int = typer.Option(0, "--days", help="Override retention days (0 = use policy default)."),
+):
+    """Prune local data older than the retention policy window."""
+    settings, policy = settings_from_env_with_policy()
+    retention_days = days if days > 0 else policy.retention.audit_retention_days
+    if retention_days < 1:
+        console.print("No retention policy configured (days=0).")
+        return
+
+    store = _build_store(settings)
+    try:
+        if dry_run:
+            # Count events that would be pruned.
+            from datetime import datetime as dt
+            cutoff = dt.now().timestamp() - (retention_days * 86400.0)
+            cur = store.conn.cursor()
+            cur.execute("SELECT COUNT(*) AS cnt FROM privacy_events WHERE ts < ?", (cutoff,))
+            events_count = int(cur.fetchone()["cnt"] or 0)
+            cur.execute("SELECT COUNT(*) AS cnt FROM proof_reports WHERE ts < ?", (cutoff,))
+            reports_count = int(cur.fetchone()["cnt"] or 0)
+            cur.execute("SELECT COUNT(*) AS cnt FROM secret_access_events WHERE ts < ?", (cutoff,))
+            secrets_count = int(cur.fetchone()["cnt"] or 0)
+            total = events_count + reports_count + secrets_count
+            console.print(f"[DRY RUN] Would prune {total} rows older than {retention_days} days:")
+            console.print(f"  privacy_events: {events_count}")
+            console.print(f"  proof_reports: {reports_count}")
+            console.print(f"  secret_access_events: {secrets_count}")
+        else:
+            pruned = store.prune_by_retention(retention_days)
+            console.print(f"Pruned {pruned} rows older than {retention_days} days.")
+    finally:
+        store.close()
+
+
+@app.command("audit-status")
+def audit_status():
+    """Show audit trail health: file count, last write, and integrity check."""
+    from cognitiveio.policy.corporate import load_corporate_policy
+
+    policy = load_corporate_policy()
+    audit_writer = AuditWriter(policy)
+
+    table = Table(title="Audit Trail Status")
+    table.add_column("Metric")
+    table.add_column("Value")
+
+    table.add_row("Tier", audit_writer.tier)
+    table.add_row("Audit Path", str(audit_writer.audit_dir))
+    table.add_row("JSONL File Count", str(audit_writer.file_count()))
+
+    last_write = audit_writer.last_write_time()
+    if last_write:
+        ts_str = datetime.fromtimestamp(last_write).isoformat(timespec="seconds")
+        table.add_row("Last Write", ts_str)
+    else:
+        table.add_row("Last Write", "(no files)")
+
+    # Integrity check on latest file.
+    audit_dir = audit_writer.audit_dir
+    if audit_dir.exists():
+        files = sorted(audit_dir.glob("*.jsonl"), reverse=True)
+        if files:
+            latest_name = files[0].name
+            integrity = audit_writer.verify_integrity(latest_name)
+            table.add_row("Latest File", latest_name)
+            table.add_row("Integrity Check", "PASS" if integrity else "FAIL / N/A")
+        else:
+            table.add_row("Latest File", "(none)")
+            table.add_row("Integrity Check", "N/A")
+    else:
+        table.add_row("Latest File", "(audit dir not found)")
+        table.add_row("Integrity Check", "N/A")
+
+    audit_writer.close()
+    console.print(table)
+
+
+@app.command("session-status")
+def session_status(
+    limit: int = typer.Option(10, "--limit", help="Number of recent sessions to show."),
+):
+    """Show session history with warmth state and onboarding progression."""
+    store, settings = _get_store()
+    try:
+        sessions = store.list_sessions(limit=limit)
+        overall = store.overall_warmth_state()
+
+        # Summary.
+        console.print(f"[bold]Onboarding State[/bold]: {overall}")
+        console.print(f"Total sessions: {store.session_count()}")
+        console.print()
+
+        if not sessions:
+            console.print("No sessions recorded yet.")
+            return
+
+        table = Table(title="Recent Sessions")
+        table.add_column("Session ID")
+        table.add_column("Started")
+        table.add_column("Warmth")
+        table.add_column("Shown")
+        table.add_column("Accepted")
+        table.add_column("Dismissed")
+        table.add_column("Accept Rate")
+        table.add_column("Dominant App")
+        for s in sessions:
+            start_ts = s.get("start_ts", 0)
+            started = datetime.fromtimestamp(start_ts).strftime("%Y-%m-%d %H:%M") if start_ts else "?"
+            shown = int(s.get("suggestions_shown", 0))
+            accepted = int(s.get("suggestions_accepted", 0))
+            dismissed = int(s.get("suggestions_dismissed", 0))
+            rate = f"{accepted / max(shown, 1):.0%}" if shown > 0 else "-"
+            table.add_row(
+                str(s.get("session_id", ""))[:12],
+                started,
+                str(s.get("warmth_state", "embryonic")),
+                str(shown),
+                str(accepted),
+                str(dismissed),
+                rate,
+                str(s.get("dominant_app", "")),
+            )
+        console.print(table)
     finally:
         store.close()
 

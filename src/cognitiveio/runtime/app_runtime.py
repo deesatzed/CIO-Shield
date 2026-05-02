@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass
 from datetime import datetime
 import json
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional
+import uuid
 
 from cognitiveio.config import Settings
 from cognitiveio.context.profiles import AppContext, classify_profile
@@ -43,20 +44,39 @@ class RuntimeEvent:
     flags: Optional[RiskFlags] = None
 
 
+_STATUS_HINT_MAP = {
+    "paused": "Paused",
+    "trust_circuit_breaker": "Cooling down",
+    "no_boundary_trigger": "",
+    "idle_threshold_not_met": "",
+    "password_or_excluded": "Protected field",
+    "no_local_candidates": "No match",
+    "typing_fast": "Typing fast",
+    "budget_cap": "Rate limited",
+    "dismissal_cooldown": "Cooling down",
+    "unknown_profile": "Unknown app",
+    "candidate_conflict": "Ambiguous",
+    "no_candidates": "No match",
+    "corporate_policy_block": "Blocked by policy",
+}
+
+
 @dataclass
 class RuntimeResult:
     action: str
     message: str
     protected_mode: bool
     paused: bool
+    status_hint: str = ""
 
 
 class AppRuntime:
     """Deterministic runtime state machine for suggest-only intervention flow."""
 
-    def __init__(self, settings: Settings, store: LocalStore):
+    def __init__(self, settings: Settings, store: LocalStore, policy: Optional[object] = None):
         self.settings = settings
         self.store = store
+        self.policy = policy
 
         self.metrics = Metrics()
         self.undo_stack = UndoStack()
@@ -73,6 +93,12 @@ class AppRuntime:
         self._last_decision: Dict[str, Any] = {}
         self._last_decision_path: Path = self.settings.report_dir / "latest_decision.json"
         self._last_decision_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Session tracking.
+        self._session_id = uuid.uuid4().hex[:12]
+        self._session_app_counter: Counter[str] = Counter()
+        self._session_profile_counter: Counter[str] = Counter()
+        self.store.start_session(self._session_id)
 
     @staticmethod
     def _merge_candidates(*candidate_groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -114,12 +140,20 @@ class AppRuntime:
             self._suggestion_ts.popleft()
         return len(self._suggestion_ts)
 
-    def _result(self, action: str, message: str) -> RuntimeResult:
+    def _result(self, action: str, message: str, reason_tag: str = "") -> RuntimeResult:
+        hint = ""
+        if action == "do_nothing" and reason_tag:
+            hint = _STATUS_HINT_MAP.get(reason_tag, "")
+            if not hint and reason_tag.startswith("profile_block:"):
+                hint = "Code/terminal"
+            elif not hint and reason_tag.startswith("blocked:"):
+                hint = "Blocked"
         return RuntimeResult(
             action=action,
             message=message,
             protected_mode=self.protected_mode,
             paused=self.paused,
+            status_hint=hint,
         )
 
     @staticmethod
@@ -286,7 +320,16 @@ class AppRuntime:
 
     async def process_boundary_event(self, event: RuntimeEvent) -> RuntimeResult:
         now = self._now_ts()
-        profile = classify_profile(AppContext(app_name=event.app_name, bundle_id=event.app_bundle_id))
+        profile = classify_profile(
+            AppContext(app_name=event.app_name, bundle_id=event.app_bundle_id),
+            policy=self.policy,
+        )
+        # Track per-session app and profile usage.
+        if event.app_name:
+            self._session_app_counter[event.app_name] += 1
+        if profile:
+            self._session_profile_counter[profile] += 1
+
         if self.paused:
             self.metrics.inc("blocked", 1)
             self.store.log_privacy_event(kind="blocked", reason="paused", app_name=event.app_name)
@@ -299,7 +342,7 @@ class AppRuntime:
                 idle_ms=event.idle_ms,
                 typing_fast=event.typing_fast,
             )
-            return self._result("do_nothing", "Paused - ignored input.")
+            return self._result("do_nothing", "Paused - ignored input.", reason_tag="paused")
 
         if now < self._trust_pause_until_ts:
             self.metrics.inc("blocked", 1)
@@ -321,6 +364,7 @@ class AppRuntime:
             return self._result(
                 "do_nothing",
                 f"Trust cooldown active ({remaining}s remaining) - suggestions temporarily paused.",
+                reason_tag="trust_circuit_breaker",
             )
 
         if not self._is_boundary(event.boundary):
@@ -333,9 +377,16 @@ class AppRuntime:
                 idle_ms=event.idle_ms,
                 typing_fast=event.typing_fast,
             )
-            return self._result("do_nothing", "No boundary trigger.")
+            return self._result("do_nothing", "No boundary trigger.", reason_tag="no_boundary_trigger")
 
-        if event.idle_ms < self.settings.idle_pause_ms:
+        # Adaptive idle: fast typists get a higher threshold to reduce interruption.
+        effective_idle_ms = self.settings.idle_pause_ms
+        if event.typing_fast and self.settings.adaptive_idle_enabled:
+            effective_idle_ms = int(
+                self.settings.idle_pause_ms * self.settings.adaptive_idle_fast_multiplier
+            )
+
+        if event.idle_ms < effective_idle_ms:
             self._record_last_decision(
                 action="do_nothing",
                 reason_tag="idle_threshold_not_met",
@@ -345,7 +396,7 @@ class AppRuntime:
                 idle_ms=event.idle_ms,
                 typing_fast=event.typing_fast,
             )
-            return self._result("do_nothing", "Idle threshold not met.")
+            return self._result("do_nothing", "Idle threshold not met.", reason_tag="idle_threshold_not_met")
 
         flags = event.flags or RiskFlags()
         if (
@@ -364,7 +415,7 @@ class AppRuntime:
                 idle_ms=event.idle_ms,
                 typing_fast=event.typing_fast,
             )
-            return self._result("do_nothing", "Protected Mode Active - no capture, no suggestions.")
+            return self._result("do_nothing", "Protected Mode Active - no capture, no suggestions.", reason_tag="password_or_excluded")
 
         self.protected_mode = False
         ctx = AppContext(app_name=event.app_name, bundle_id=event.app_bundle_id)
@@ -383,7 +434,7 @@ class AppRuntime:
                 idle_ms=event.idle_ms,
                 typing_fast=event.typing_fast,
             )
-            return self._result("do_nothing", "No local candidates.")
+            return self._result("do_nothing", "No local candidates.", reason_tag="no_local_candidates")
 
         candidates = [
             Candidate(
@@ -413,6 +464,7 @@ class AppRuntime:
             budget=budget,
             settings=self.settings,
             user_prefs={},
+            policy=self.policy,
         )
 
         if decision.action == "do_nothing":
@@ -437,7 +489,7 @@ class AppRuntime:
                 typing_fast=event.typing_fast,
                 candidates=candidates_raw,
             )
-            return self._result("do_nothing", f"No intervention ({decision.reason_tag}).")
+            return self._result("do_nothing", f"No intervention ({decision.reason_tag}).", reason_tag=decision.reason_tag)
 
         if not decision.replacement or not decision.chosen_candidate_id:
             self._record_last_decision(
@@ -450,7 +502,7 @@ class AppRuntime:
                 typing_fast=event.typing_fast,
                 candidates=candidates_raw,
             )
-            return self._result("do_nothing", "No replacement selected.")
+            return self._result("do_nothing", "No replacement selected.", reason_tag="no_replacement_selected")
 
         self._suggestion_ts.append(now)
         self.pending = PendingSuggestion(
@@ -517,7 +569,45 @@ class AppRuntime:
             return await self.process_boundary_event(event)
         return self._result("do_nothing", "Unknown event kind.")
 
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    @property
+    def warmth_state(self) -> str:
+        return self.store.derive_warmth_state(
+            self.metrics.c.suggestion_shown,
+            self.metrics.c.suggestion_accepted,
+        )
+
+    def _flush_session(self) -> None:
+        """Write current session metrics to the store."""
+        dominant_app = (
+            self._session_app_counter.most_common(1)[0][0]
+            if self._session_app_counter
+            else ""
+        )
+        dominant_profile = (
+            self._session_profile_counter.most_common(1)[0][0]
+            if self._session_profile_counter
+            else ""
+        )
+        self.store.update_session(
+            self._session_id,
+            suggestions_shown=self.metrics.c.suggestion_shown,
+            suggestions_accepted=self.metrics.c.suggestion_accepted,
+            suggestions_dismissed=self.metrics.c.suggestion_dismissed,
+            undone=self.metrics.c.undone,
+            blocked=self.metrics.c.blocked,
+            dominant_app=dominant_app,
+            dominant_profile=dominant_profile,
+        )
+
     def build_report(self) -> ProofReport:
+        # Finalize session before building report.
+        self._flush_session()
+        self.store.end_session(self._session_id)
+
         events = self.store.get_privacy_events(limit=1000)
         block_counts: Dict[str, int] = {}
         for e in events:

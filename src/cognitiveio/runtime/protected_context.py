@@ -38,9 +38,16 @@ PASSWORD_KEYWORDS = {
 class ProtectedContextDetector:
     """Best-effort protected context detector for hard privacy blocks."""
 
-    def __init__(self, exclusion_path: Optional[Path] = None):
+    def __init__(
+        self,
+        exclusion_path: Optional[Path] = None,
+        corporate_blocked_apps: Optional[Set[str]] = None,
+        corporate_blocked_bundles: Optional[Set[str]] = None,
+    ):
         self.exclusion_path = exclusion_path or (Path.home() / ".cognitiveio" / "exclusions.json")
         self.user_excluded_apps: Set[str] = self._load_user_exclusions()
+        self.corporate_blocked_apps: Set[str] = corporate_blocked_apps or set()
+        self.corporate_blocked_bundles: Set[str] = corporate_blocked_bundles or set()
 
         self._detector_uncertain = False
 
@@ -80,6 +87,8 @@ class ProtectedContextDetector:
     def _is_sensitive_app(self, app_name: str) -> Tuple[bool, str]:
         if app_name in BLACKLISTED_APPS:
             return True, "blacklisted_app"
+        if app_name in self.corporate_blocked_apps:
+            return True, "corporate_policy_block"
         if app_name in self.user_excluded_apps:
             return True, "user_excluded"
 

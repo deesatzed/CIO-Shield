@@ -1,12 +1,13 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Optional, Dict
+from typing import Dict, FrozenSet, Optional
 
 PROFILE_CODE = "code"
 PROFILE_TERMINAL = "terminal"
 PROFILE_EMAIL_DOCS = "email_docs"
 PROFILE_CHAT = "chat"
 PROFILE_UNKNOWN = "unknown"
+PROFILE_BLOCKED_BY_POLICY = "blocked_by_policy"
 
 @dataclass(frozen=True)
 class AppContext:
@@ -54,7 +55,25 @@ DEFAULT_BUNDLE_PROFILE_MAP: Dict[str, str] = {
 }
 
 
-def classify_profile(ctx: AppContext, overrides: Optional[Dict[str, str]] = None) -> str:
+def classify_profile(
+    ctx: AppContext,
+    overrides: Optional[Dict[str, str]] = None,
+    policy: Optional[object] = None,
+) -> str:
+    """Classify an app context into a profile string.
+
+    When a corporate policy is provided, apps/bundles in the force-blocked
+    lists are classified as ``blocked_by_policy`` before any other check.
+    """
+    # Corporate policy force-blocks take highest priority.
+    if policy is not None:
+        blocked_apps: FrozenSet[str] = getattr(policy, "force_blocked_apps", frozenset())
+        blocked_bundles: FrozenSet[str] = getattr(policy, "force_blocked_bundles", frozenset())
+        if ctx.app_name in blocked_apps:
+            return PROFILE_BLOCKED_BY_POLICY
+        if ctx.bundle_id and ctx.bundle_id in blocked_bundles:
+            return PROFILE_BLOCKED_BY_POLICY
+
     if overrides:
         if ctx.bundle_id and ctx.bundle_id in overrides:
             return overrides[ctx.bundle_id]

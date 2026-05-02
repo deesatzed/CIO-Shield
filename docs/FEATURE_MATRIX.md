@@ -15,7 +15,7 @@ Scoring scale:
 | 5 | Adaptive assistance ladder routing | `the-associate` + `xplurx` | 0.85 | 0.89 | low | Adopt |
 | 6 | Deterministic candidate arbitration with explicit tie-break | `the-associate` | 0.84 | 0.87 | low | Adopt |
 | 7 | Structured diagnostic snapshots for trust audits | `the-associate` | 0.83 | 0.86 | medium | Adopt |
-| 8 | Session profile and onboarding contract artifacts | `xplurx` | 0.80 | 0.82 | low | Adopt later |
+| 8 | Session profile and onboarding contract artifacts | `xplurx` | 0.80 | 0.82 | low | Adopted |
 | 9 | Research/web augmentation in runtime decision path | mixed | 0.42 | 0.30 | high | Reject |
 | 10 | Cloud-hosted memory/telemetry for runtime loop | mixed | 0.35 | 0.20 | high | Reject |
 

@@ -1,1 +1,1 @@
-"""cognitiveio subpackage."""
+"""cognitiveio.policy — risk scoring and corporate policy enforcement."""

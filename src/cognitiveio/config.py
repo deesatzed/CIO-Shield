@@ -59,6 +59,10 @@ class Settings:
     fail_safe_unknown_profile: bool = True
     protected_mode_blocks_all: bool = True
 
+    # Adaptive idle: scale idle_pause_ms for fast typists to reduce interruption.
+    adaptive_idle_enabled: bool = True
+    adaptive_idle_fast_multiplier: float = 1.5  # Fast typists get 1.5x idle pause.
+
     # Intervention budget and cooldown.
     max_suggestions_per_min: int = 8
     dismissals_before_cooldown: int = 3
@@ -140,3 +144,17 @@ def settings_from_env() -> Settings:
         # No A/B split: explicit fm-enabled flow behaves like variant B.
         s.apple_fm_variant = "B"
     return s
+
+
+def settings_from_env_with_policy():
+    """Create settings with env overrides, then apply corporate policy locks.
+
+    Returns (Settings, PolicyConstraints) tuple.  Existing settings_from_env()
+    remains untouched for backward compatibility.
+    """
+    from cognitiveio.policy.corporate import apply_corporate_settings, load_corporate_policy
+
+    settings = settings_from_env()
+    policy = load_corporate_policy()
+    settings = apply_corporate_settings(settings, policy)
+    return settings, policy

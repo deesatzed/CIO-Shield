@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, cast
 
 from cognitiveio.context.profiles import (
     AppContext,
+    PROFILE_BLOCKED_BY_POLICY,
     PROFILE_CODE,
     PROFILE_TERMINAL,
     PROFILE_UNKNOWN,
@@ -87,10 +88,12 @@ async def decide(
     budget: BudgetState,
     settings: Settings,
     user_prefs: Optional[Dict[str, Any]] = None,
+    policy: Optional[object] = None,
 ) -> Decision:
     t0 = time.perf_counter()
     result = await _decide_inner(
-        ctx, flags, candidates, context_window, metrics, budget, settings, user_prefs
+        ctx, flags, candidates, context_window, metrics, budget, settings, user_prefs,
+        policy=policy,
     )
     elapsed = time.perf_counter() - t0
     if elapsed > _DECISION_PATH_WARN_SECONDS:
@@ -111,14 +114,20 @@ async def _decide_inner(
     budget: BudgetState,
     settings: Settings,
     user_prefs: Optional[Dict[str, Any]] = None,
+    policy: Optional[object] = None,
 ) -> Decision:
-    profile = classify_profile(ctx)
+    profile = classify_profile(ctx, policy=policy)
     risk = assess_risk(profile, flags)
     tier = gate_action(risk)
 
     if tier == "none":
         metrics.inc("blocked", 1)
         return Decision("do_nothing", None, None, 0.0, f"blocked:{risk.reason}")
+
+    # Corporate policy block — force-blocked apps/bundles.
+    if profile == PROFILE_BLOCKED_BY_POLICY:
+        metrics.inc("blocked", 1)
+        return Decision("do_nothing", None, None, 0.0, "corporate_policy_block")
 
     if profile in (PROFILE_CODE, PROFILE_TERMINAL):
         metrics.inc("blocked", 1)

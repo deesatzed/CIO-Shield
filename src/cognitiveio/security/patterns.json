@@ -1,0 +1,130 @@
+{
+  "patterns": [
+    {
+      "id": "openai_api_key",
+      "description": "OpenAI API key (sk- prefix)",
+      "category": "secret",
+      "regex": "\\bsk-[A-Za-z0-9]{20,}\\b"
+    },
+    {
+      "id": "aws_access_key",
+      "description": "AWS access key ID (AKIA prefix, 20 chars)",
+      "category": "secret",
+      "regex": "\\bAKIA[0-9A-Z]{16}\\b"
+    },
+    {
+      "id": "generic_secret_label",
+      "description": "Key/password/token label followed by value",
+      "category": "secret",
+      "regex": "(?i)(api[_-]?key|password|passphrase|token|secret)\\s*[:=]\\s*[^\\s,;]+"
+    },
+    {
+      "id": "private_key_header",
+      "description": "PEM private key header",
+      "category": "secret",
+      "regex": "-----BEGIN [A-Z ]+PRIVATE KEY-----"
+    },
+    {
+      "id": "email",
+      "description": "Email address",
+      "category": "private_email",
+      "regex": "\\b[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}\\b"
+    },
+    {
+      "id": "phone_international",
+      "description": "International phone number with + prefix",
+      "category": "private_phone",
+      "regex": "\\+(?:[0-9][\\s\\-.()]*){7,15}"
+    },
+    {
+      "id": "iban",
+      "description": "IBAN (International Bank Account Number)",
+      "category": "account_number",
+      "regex": "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]){10,30}\\b"
+    },
+    {
+      "id": "credit_card_16",
+      "description": "16-digit credit card (Visa/MC/Discover/JCB)",
+      "category": "account_number",
+      "regex": "\\b\\d{4}[\\s\\-]?\\d{4}[\\s\\-]?\\d{4}[\\s\\-]?\\d{4}\\b"
+    },
+    {
+      "id": "credit_card_amex",
+      "description": "American Express 15-digit credit card",
+      "category": "account_number",
+      "regex": "\\b3[47]\\d{2}[\\s\\-]?\\d{6}[\\s\\-]?\\d{5}\\b"
+    },
+    {
+      "id": "ipv4",
+      "description": "IPv4 address (octet-bounded)",
+      "category": "secret",
+      "regex": "\\b(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)(?:\\.(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)){3}\\b"
+    },
+    {
+      "id": "ipv6",
+      "description": "IPv6 address",
+      "category": "secret",
+      "regex": "\\b(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}\\b"
+    },
+    {
+      "id": "mac_address",
+      "description": "MAC address (hex pairs separated by : or -)",
+      "category": "secret",
+      "regex": "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b"
+    },
+    {
+      "id": "us_ssn",
+      "description": "US Social Security Number (XXX-XX-XXXX)",
+      "category": "secret",
+      "regex": "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+    },
+    {
+      "id": "uk_nino",
+      "description": "UK National Insurance Number",
+      "category": "secret",
+      "regex": "\\b[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\\s?\\d{2}\\s?\\d{2}\\s?\\d{2}\\s?[A-D]\\b"
+    },
+    {
+      "id": "jwt",
+      "description": "JSON Web Token (eyJ-prefixed, three base64url segments)",
+      "category": "secret",
+      "regex": "\\beyJ[\\w\\-]+\\.[\\w\\-]+\\.[\\w\\-]+\\b"
+    },
+    {
+      "id": "github_token",
+      "description": "GitHub personal/OAuth/server/user token",
+      "category": "secret",
+      "regex": "\\bgh[opsu]_[A-Za-z0-9]{36,}\\b"
+    },
+    {
+      "id": "stripe_live_key",
+      "description": "Stripe live secret key",
+      "category": "secret",
+      "regex": "\\bsk_live_[A-Za-z0-9]{20,}\\b"
+    },
+    {
+      "id": "crypto_eth",
+      "description": "Ethereum/EVM address (0x + 40 hex)",
+      "category": "account_number",
+      "regex": "\\b0x[a-fA-F0-9]{40}\\b"
+    },
+    {
+      "id": "crypto_btc",
+      "description": "Bitcoin address (legacy or bech32)",
+      "category": "account_number",
+      "regex": "\\b(?:bc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39,59}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\\b"
+    },
+    {
+      "id": "crypto_ltc",
+      "description": "Litecoin address (legacy or bech32)",
+      "category": "account_number",
+      "regex": "\\b(?:ltc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39,59}|[LM][a-km-zA-HJ-NP-Z1-9]{26,34})\\b"
+    },
+    {
+      "id": "crypto_labeled",
+      "description": "Crypto address fallback anchored on ticker label",
+      "category": "account_number",
+      "regex": "(?i)(?:Digital\\s+Currency\\s+Address:?\\s*)?\\b(?:ETH|BTC|XBT|BNB|USDT|USDC|TRX|SOL|XRP|LTC|DASH|XMR|BCH|DOGE|ADA|TON)[:\\s]+[A-Za-z0-9]{26,}\\b"
+    }
+  ]
+}
