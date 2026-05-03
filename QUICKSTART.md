@@ -147,20 +147,18 @@ Ignore it. The bootstrap will still complete. CIO-Shield falls back to determini
 
 ### `ModuleNotFoundError: No module named 'cognitiveio'`
 
-This happens if uv's managed Python doesn't process `.pth` files for editable installs. Fix:
+This can happen if `bootstrap.sh` was run with an older version that used editable installs (`-e` flag). The current bootstrap uses a standard install which copies code directly into site-packages. Fix:
 ```bash
 rm -rf .venv
 ./bootstrap.sh
 source .venv/bin/activate
 ```
 
-The bootstrap now uses your system Python (`python3`) which handles `.pth` files correctly. If the problem persists:
+**For developers** who want live code editing (changes reflected without reinstall):
 ```bash
-rm -rf .venv
-uv venv .venv --python $(which python3)
-source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv pip install -e ".[dev,mac]"
 ```
+Note: editable installs may not work if your `python3` points to conda/miniforge. In that case, use the standard install and re-run `uv pip install ".[dev]"` after each code change.
 
 ### Tests fail with `ModuleNotFoundError`
 
