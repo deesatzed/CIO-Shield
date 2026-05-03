@@ -128,6 +128,13 @@ source ~/.zshrc
 brew install python@3.13
 ```
 
+### `warning: Failed to clone files; falling back to full copy`
+
+This is a harmless `uv` warning. It means your filesystem doesn't support reflinking (copy-on-write). Suppress it by adding to `~/.zshrc`:
+```bash
+export UV_LINK_MODE=copy
+```
+
 ### Bootstrap fails on Apple FM SDK clone
 
 This is expected if you don't have access to Apple's private FM SDK. The clone failure is non-blocking — all tests and core functionality work without it. If you see:
@@ -137,6 +144,23 @@ fatal: repository 'https://github.com/apple/python-apple-fm-sdk' not found
 ```
 
 Ignore it. The bootstrap will still complete. CIO-Shield falls back to deterministic-only mode (no FM arbiter).
+
+### `ModuleNotFoundError: No module named 'cognitiveio'`
+
+This happens if uv's managed Python doesn't process `.pth` files for editable installs. Fix:
+```bash
+rm -rf .venv
+./bootstrap.sh
+source .venv/bin/activate
+```
+
+The bootstrap now uses your system Python (`python3`) which handles `.pth` files correctly. If the problem persists:
+```bash
+rm -rf .venv
+uv venv .venv --python $(which python3)
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+```
 
 ### Tests fail with `ModuleNotFoundError`
 

@@ -10,7 +10,14 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 if [[ ! -d .venv ]]; then
-  uv venv .venv
+  # Use system Python to ensure .pth files are processed correctly.
+  # uv's managed Python distributions may skip .pth processing for editable installs.
+  SYSTEM_PYTHON="$(command -v python3 || true)"
+  if [[ -n "$SYSTEM_PYTHON" ]]; then
+    uv venv .venv --python "$SYSTEM_PYTHON"
+  else
+    uv venv .venv
+  fi
 fi
 
 # shellcheck disable=SC1091
@@ -30,7 +37,14 @@ if ! python -c "import apple_fm_sdk" >/dev/null 2>&1; then
   uv pip install -e "$SDK_DIR"
 fi
 
-PYTHONPATH=src python -m cognitiveio.cli requirements-check
+python -c "import cognitiveio" 2>/dev/null || {
+  echo "ERROR: editable install failed — cognitiveio module not importable."
+  echo "Try: rm -rf .venv && ./bootstrap.sh"
+  exit 1
+}
 
+cio-ii requirements-check
+
+echo ""
 echo "Bootstrap complete."
-echo "Run CIO-II with: PYTHONPATH=src python -m cognitiveio.cli run --mode mac"
+echo "Run: source .venv/bin/activate && cio-ii run --mode headless"
