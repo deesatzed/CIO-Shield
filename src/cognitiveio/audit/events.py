@@ -82,10 +82,26 @@ class RedactionAuditEvent(AuditEvent):
     pattern_type: str = ""              # api_key, aws_key, private_key, corporate_pattern
     destination_profile: str = ""       # profile of destination app
     token_count: int = 0                # how many secrets found (count only)
+    vault_token_count: int = 0          # how many secrets stored in vault
 
     def __post_init__(self) -> None:
         if not self.event:
             self.event = "redaction"
+        super().__post_init__()
+
+
+@dataclass
+class BackfillAuditEvent(AuditEvent):
+    """Audit event when vault tokens are resolved via backfill."""
+
+    tokens_resolved: int = 0            # how many [CIO:xxx] tokens were resolved
+    tokens_denied: int = 0              # how many were denied by policy
+    destination_app: str = ""           # where the backfilled content went
+    policy_gate: str = ""               # "allowed", "denied_app", "denied_policy", "expired"
+
+    def __post_init__(self) -> None:
+        if not self.event:
+            self.event = "backfill"
         super().__post_init__()
 
 

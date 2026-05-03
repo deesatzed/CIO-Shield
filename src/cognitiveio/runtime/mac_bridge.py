@@ -245,6 +245,10 @@ class MacRuntimeBridge:
             6,
             {"control", "option"},
         )
+        self.backfill_binding = parse_hotkey_spec(self.runtime.settings.backfill_hotkey) or (
+            11,  # 'b' keycode
+            {"control", "option"},
+        )
         self._status_text = ""
 
         self._pasteboard = None
@@ -262,6 +266,18 @@ class MacRuntimeBridge:
         self.synth_until_ts = 0.0
 
         self.tap = None
+
+        # Cached vault key for shield/backfill operations (derived on first use).
+        self._vault_key: Optional[bytes] = None
+
+    def _get_vault_key(self) -> bytes:
+        """Return the cached vault key, deriving it on first call."""
+        if self._vault_key is None:
+            from cognitiveio.security.vault_crypto import derive_vault_key
+
+            db_key = getattr(self.runtime.settings, "db_key_ref", None)
+            self._vault_key = derive_vault_key(db_key)
+        return self._vault_key
 
     def _active_app_info(self) -> Dict[str, Any]:
         workspace = self.NSWorkspace.sharedWorkspace()
@@ -456,6 +472,12 @@ class MacRuntimeBridge:
             self.presenter.hide()
             return True
 
+        # Configurable backfill hotkey.
+        if self._hotkey_matches(keycode, modset, self.backfill_binding):
+            active = self._active_app_info()
+            self._handle_backfill(active.get("name", "") or "")
+            return True
+
         return False
 
     def _event_callback(self, proxy, event_type, event, refcon):
@@ -479,6 +501,16 @@ class MacRuntimeBridge:
                 return None
 
             active = self._active_app_info()
+            app_name_for_shield = active.get("name", "") or ""
+
+            # ── Clipboard Shield: intercept Cmd+V ────────────────────────
+            if (
+                keycode == 9
+                and "command" in mods
+                and not any(m in mods for m in ("shift", "option", "control"))
+            ):
+                self._shield_paste(app_name_for_shield)
+                return event  # Let paste proceed (clipboard already replaced if needed)
             app_name = active.get("name", "") or ""
             is_protected, reason = self.detector.check(app_name)
 
@@ -579,6 +611,156 @@ class MacRuntimeBridge:
 
         return event
 
+    def _shield_paste(self, app_name: str) -> None:
+        """Scan clipboard for secrets and redact before paste reaches app.
+
+        If vault and FM clipboard shield are enabled, uses the enhanced async
+        scanner that stores encrypted originals in the vault with [CIO:xxx]
+        tokens. Otherwise falls back to the synchronous regex-only scanner
+        for backward compatibility.
+        """
+        if self._pasteboard is None:
+            return
+
+        text = self._pasteboard.stringForType_("public.utf8-plain-text")
+        if not text:
+            return
+
+        text_str = str(text)
+        settings = self.runtime.settings
+        use_enhanced = (
+            getattr(settings, "vault_enabled", False)
+            and getattr(settings, "fm_clipboard_shield_enabled", False)
+        )
+
+        if use_enhanced:
+            # Enhanced path: async scanner with vault token storage and FM detection.
+            from cognitiveio.runtime.clipboard_shield import scan_text_for_secrets_enhanced
+
+            vault_key = self._get_vault_key()
+            result = asyncio.run(
+                scan_text_for_secrets_enhanced(
+                    text_str,
+                    store=self.runtime.store,
+                    vault_key=vault_key,
+                    settings=settings,
+                    source_app="clipboard",
+                    dest_app=app_name,
+                )
+            )
+        else:
+            # Backward-compatible path: synchronous regex-only scanner.
+            from cognitiveio.runtime.clipboard_shield import scan_text_for_secrets
+
+            result = scan_text_for_secrets(text_str)
+
+        if not result.contains_secrets:
+            return
+
+        # Replace clipboard with redacted version (contains [CIO:xxx] tokens if enhanced).
+        self._pasteboard.clearContents()
+        self._pasteboard.setString_forType_(result.redacted_text, "public.utf8-plain-text")
+
+        # Log to privacy ledger (categorical only -- no secret content stored).
+        vault_token_count = getattr(result, "vault_token_count", 0)
+        fm_detected = getattr(result, "fm_detected", False)
+        # fm_detected may be a bool or int depending on the scanner path.
+        fm_detected_count = int(fm_detected) if isinstance(fm_detected, bool) else fm_detected
+
+        self.runtime.store.log_privacy_event(
+            kind="redaction",
+            reason="clipboard_paste_redacted",
+            app_name=app_name,
+            profile="",
+            event_type="clipboard_shield",
+            meta={
+                "match_count": result.match_count,
+                "vault_token_count": vault_token_count,
+                "fm_detected": fm_detected_count,
+            },
+        )
+
+        print(
+            f"[SHIELD] Redacted {result.match_count} secret(s) from paste into {app_name}"
+            f" ({vault_token_count} vault tokens, FM detected {fm_detected_count} additional)"
+        )
+
+        # Schedule clipboard restore after paste completes (100ms delay).
+        import threading
+
+        original = text_str
+
+        def _restore() -> None:
+            import time
+
+            time.sleep(0.1)
+            try:
+                self._pasteboard.clearContents()
+                self._pasteboard.setString_forType_(original, "public.utf8-plain-text")
+            except Exception:
+                pass
+
+        threading.Thread(target=_restore, daemon=True).start()
+
+    def _handle_backfill(self, app_name: str) -> None:
+        """Resolve [CIO:xxx] vault tokens in clipboard via backfill."""
+        if self._pasteboard is None:
+            return
+
+        text = self._pasteboard.stringForType_("public.utf8-plain-text")
+        if not text:
+            return
+
+        text_str = str(text)
+
+        # Quick check: does the clipboard contain any vault tokens?
+        from cognitiveio.runtime.backfill import find_vault_tokens
+
+        tokens = find_vault_tokens(text_str)
+        if not tokens:
+            return
+
+        from cognitiveio.runtime.backfill import resolve_tokens
+
+        vault_key = self._get_vault_key()
+        policy = getattr(self.runtime, "policy", None)
+
+        bf_result = resolve_tokens(
+            text=text_str,
+            store=self.runtime.store,
+            vault_key=vault_key,
+            settings=self.runtime.settings,
+            policy=policy,
+            dest_app=app_name,
+        )
+
+        if bf_result.tokens_resolved > 0:
+            # Replace clipboard with resolved text.
+            self._pasteboard.clearContents()
+            self._pasteboard.setString_forType_(bf_result.resolved_text, "public.utf8-plain-text")
+
+        # Log audit event for the backfill attempt.
+        self.runtime.store.log_privacy_event(
+            kind="backfill",
+            reason="vault_token_backfill",
+            app_name=app_name,
+            profile="",
+            event_type="backfill",
+            meta={
+                "tokens_found": bf_result.tokens_found,
+                "tokens_resolved": bf_result.tokens_resolved,
+                "tokens_denied": bf_result.tokens_denied,
+                "tokens_expired": bf_result.tokens_expired,
+                "tokens_failed": bf_result.tokens_failed,
+                "policy_gate": bf_result.policy_gate,
+            },
+        )
+
+        print(
+            f"[BACKFILL] Resolved {bf_result.tokens_resolved}/{bf_result.tokens_found} tokens."
+            f" Policy: {bf_result.policy_gate}"
+        )
+
     def _menu_toggle_pause(self) -> None:
         out = asyncio.run(self.runtime.process_event(RuntimeEvent(kind="panic")))
         print(out.message)
@@ -674,6 +856,7 @@ class MacRuntimeBridge:
             "Hotkeys: "
             f"{self.runtime.settings.panic_hotkey} panic, "
             f"{self.runtime.settings.undo_hotkey} undo, "
+            f"{self.runtime.settings.backfill_hotkey} backfill, "
             "Tab accept, Esc dismiss."
         )
         self.CFRunLoopRun()

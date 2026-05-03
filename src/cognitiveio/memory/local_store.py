@@ -155,6 +155,21 @@ class LocalStore:
 
             CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_ts DESC);
             CREATE INDEX IF NOT EXISTS idx_concept_lookup ON concept_lexicon(synonym, profile, confidence DESC);
+
+            CREATE TABLE IF NOT EXISTS redaction_vault (
+                token_id TEXT PRIMARY KEY,
+                encrypted_value BLOB NOT NULL,
+                nonce BLOB NOT NULL,
+                tag BLOB NOT NULL,
+                pattern_id TEXT DEFAULT '',
+                source_app TEXT DEFAULT '',
+                dest_app TEXT DEFAULT '',
+                created_ts REAL NOT NULL,
+                expires_ts REAL NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_vault_expires ON redaction_vault(expires_ts);
+            CREATE INDEX IF NOT EXISTS idx_vault_created ON redaction_vault(created_ts DESC);
             """
         )
         self.conn.commit()
@@ -819,8 +834,92 @@ class LocalStore:
         cur.execute("DELETE FROM secret_access_events WHERE ts < ?", (cutoff,))
         total += cur.rowcount or 0
 
+        cur.execute("DELETE FROM redaction_vault WHERE expires_ts < ?", (cutoff,))
+        total += cur.rowcount or 0
+
         self.conn.commit()
         return total
+
+    # ------------------------------------------------------------------
+    # Redaction Vault (tokenized redaction with local backfill)
+    # ------------------------------------------------------------------
+
+    def vault_store(
+        self,
+        token_id: str,
+        encrypted_value: bytes,
+        nonce: bytes,
+        tag: bytes,
+        pattern_id: str = "",
+        source_app: str = "",
+        dest_app: str = "",
+        retention_hours: int = 24,
+    ) -> None:
+        """Store an encrypted secret in the redaction vault."""
+        now = datetime.now().timestamp()
+        expires = now + (retention_hours * 3600.0)
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO redaction_vault
+            (token_id, encrypted_value, nonce, tag, pattern_id, source_app, dest_app, created_ts, expires_ts)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (token_id, encrypted_value, nonce, tag, pattern_id, source_app, dest_app, now, expires),
+        )
+        self.conn.commit()
+
+    def vault_lookup(self, token_id: str) -> Optional[Dict[str, Any]]:
+        """Look up a vault entry by token ID. Returns None if not found or expired."""
+        now = datetime.now().timestamp()
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT token_id, encrypted_value, nonce, tag, pattern_id,
+                   source_app, dest_app, created_ts, expires_ts
+            FROM redaction_vault
+            WHERE token_id = ? AND expires_ts > ?
+            """,
+            (token_id, now),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            "token_id": row["token_id"],
+            "encrypted_value": row["encrypted_value"],
+            "nonce": row["nonce"],
+            "tag": row["tag"],
+            "pattern_id": row["pattern_id"],
+            "source_app": row["source_app"],
+            "dest_app": row["dest_app"],
+            "created_ts": row["created_ts"],
+            "expires_ts": row["expires_ts"],
+        }
+
+    def vault_prune_expired(self) -> int:
+        """Delete expired vault entries. Returns count deleted."""
+        now = datetime.now().timestamp()
+        cur = self.conn.cursor()
+        cur.execute("DELETE FROM redaction_vault WHERE expires_ts <= ?", (now,))
+        count = cur.rowcount or 0
+        self.conn.commit()
+        return count
+
+    def vault_count(self) -> int:
+        """Return the number of active (non-expired) vault entries."""
+        now = datetime.now().timestamp()
+        cur = self.conn.cursor()
+        cur.execute("SELECT COUNT(*) AS cnt FROM redaction_vault WHERE expires_ts > ?", (now,))
+        return int(cur.fetchone()["cnt"] or 0)
+
+    def vault_clear(self) -> int:
+        """Delete ALL vault entries (user-initiated wipe). Returns count deleted."""
+        cur = self.conn.cursor()
+        cur.execute("DELETE FROM redaction_vault")
+        count = cur.rowcount or 0
+        self.conn.commit()
+        return count
 
     def export_compliance_report(
         self,

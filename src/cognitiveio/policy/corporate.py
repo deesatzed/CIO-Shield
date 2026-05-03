@@ -40,6 +40,14 @@ class HookConfig:
     post_session_script: str = ""
 
 
+@dataclass(frozen=True)
+class BackfillPolicy:
+    enabled: bool = True
+    retention_hours: int = 24
+    allowed_apps: FrozenSet[str] = frozenset()  # Empty = all internal apps
+    requires_approval: bool = False
+
+
 # ---------------------------------------------------------------------------
 # Core policy dataclass
 # ---------------------------------------------------------------------------
@@ -72,6 +80,7 @@ class PolicyConstraints:
     retention: RetentionPolicy = RetentionPolicy()
     compliance: ComplianceExportConfig = ComplianceExportConfig()
     hooks: HookConfig = HookConfig()
+    backfill: BackfillPolicy = BackfillPolicy()
 
     @property
     def is_corporate(self) -> bool:
@@ -199,6 +208,17 @@ def _parse_policy(data: Dict[str, Any]) -> PolicyConstraints:
         post_session_script=str(hooks_data.get("post_session_script", "")),
     )
 
+    # Backfill policy.
+    bf_data = data.get("backfill_policy", {})
+    if not isinstance(bf_data, dict):
+        bf_data = {}
+    backfill = BackfillPolicy(
+        enabled=bool(bf_data.get("enabled", True)),
+        retention_hours=int(bf_data.get("retention_hours", 24)),
+        allowed_apps=frozenset(str(a) for a in bf_data.get("allowed_apps", [])),
+        requires_approval=bool(bf_data.get("requires_approval", False)),
+    )
+
     return PolicyConstraints(
         organization_id=org_id,
         organization_name=org_name,
@@ -214,6 +234,7 @@ def _parse_policy(data: Dict[str, Any]) -> PolicyConstraints:
         retention=retention,
         compliance=compliance,
         hooks=hooks,
+        backfill=backfill,
     )
 
 
@@ -261,6 +282,8 @@ _BOOLEAN_STRENGTH_MAP: Dict[str, bool] = {
     "fail_safe_unknown_profile": True,   # True blocks unknown profiles.
     "protected_mode_blocks_all": True,   # True blocks all in protected mode.
     "fm_required_for_gray_zone": True,   # True requires FM for gray-zone.
+    "vault_enabled": True,
+    "vault_backfill_enabled": True,
 }
 
 # Numeric fields where LOWER is MORE secure (e.g., fewer suggestions).

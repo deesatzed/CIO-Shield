@@ -55,6 +55,16 @@ class Settings:
     apple_fm_variant: str = "B"  # B enables secure gray-zone arbiter by default.
     fm_required_for_gray_zone: bool = True
 
+    # FM-powered clipboard secret scanner (semantic layer on top of regex).
+    fm_clipboard_shield_enabled: bool = True
+    fm_clipboard_shield_timeout_seconds: float = 0.15
+
+    # Redaction vault: store originals locally for authorized backfill.
+    vault_enabled: bool = True
+    vault_retention_hours: int = 24
+    vault_backfill_enabled: bool = True
+    backfill_hotkey: str = "ctrl+option+b"
+
     # Safety defaults.
     fail_safe_unknown_profile: bool = True
     protected_mode_blocks_all: bool = True
@@ -103,6 +113,25 @@ def settings_from_env() -> Settings:
     s.auto_apply_enabled = os.getenv("COGNITIVEIO_ENABLE_SOFT_AUTO", "0") == "1"
     s.apple_fm_ab_enabled = os.getenv("COGNITIVEIO_ENABLE_AB", "0") == "1"
     s.fm_required_for_gray_zone = os.getenv("COGNITIVEIO_FM_REQUIRED_FOR_GRAY_ZONE", "1") == "1"
+
+    s.fm_clipboard_shield_enabled = os.getenv("COGNITIVEIO_FM_CLIPBOARD_SHIELD", "1") == "1"
+    fm_clip_timeout = os.getenv("COGNITIVEIO_FM_CLIPBOARD_TIMEOUT", "").strip()
+    try:
+        if fm_clip_timeout:
+            s.fm_clipboard_shield_timeout_seconds = max(0.05, min(0.5, float(fm_clip_timeout)))
+    except ValueError:
+        pass
+    s.vault_enabled = os.getenv("COGNITIVEIO_VAULT_ENABLED", "1") == "1"
+    vault_hours = os.getenv("COGNITIVEIO_VAULT_RETENTION_HOURS", "").strip()
+    try:
+        if vault_hours:
+            s.vault_retention_hours = max(1, min(720, int(vault_hours)))
+    except ValueError:
+        pass
+    s.vault_backfill_enabled = os.getenv("COGNITIVEIO_VAULT_BACKFILL", "1") == "1"
+    backfill_hk = os.getenv("COGNITIVEIO_BACKFILL_HOTKEY", "").strip()
+    if backfill_hk:
+        s.backfill_hotkey = backfill_hk
 
     panic_hotkey = os.getenv("COGNITIVEIO_PANIC_HOTKEY", "").strip()
     if panic_hotkey:

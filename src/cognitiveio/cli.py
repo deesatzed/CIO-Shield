@@ -74,7 +74,7 @@ def _seed_headless_defaults(store: LocalStore) -> None:
 def _run_headless_loop(runtime: AppRuntime, settings, store: LocalStore, app_name: str) -> None:
     console.print("[bold]CIO-II[/bold] local interactive headless mode")
     console.print("Type one token/phrase at a boundary. Empty input exits.")
-    console.print("Commands: /panic, /undo, /accept, /dismiss")
+    console.print("Commands: /panic, /undo, /accept, /dismiss, /paste, /backfill")
     _seed_headless_defaults(store)
 
     while True:
@@ -97,6 +97,101 @@ def _run_headless_loop(runtime: AppRuntime, settings, store: LocalStore, app_nam
         if token == "/dismiss":
             out = asyncio.run(runtime.process_event(RuntimeEvent(kind="dismiss")))
             console.print(out.message)
+            continue
+        if token == "/paste":
+            import subprocess
+
+            try:
+                clip = subprocess.run(
+                    ["pbpaste"], capture_output=True, text=True, timeout=2
+                ).stdout
+            except Exception:
+                clip = ""
+            if not clip:
+                console.print("Clipboard is empty.")
+                continue
+
+            # Use enhanced scanner if vault + FM are enabled
+            if settings.vault_enabled or settings.fm_clipboard_shield_enabled:
+                from cognitiveio.runtime.clipboard_shield import scan_text_for_secrets_enhanced
+                from cognitiveio.security.vault_crypto import derive_vault_key
+
+                vault_key = derive_vault_key() if settings.vault_enabled else b""
+                policy = getattr(runtime, 'policy', None)
+                result = asyncio.run(scan_text_for_secrets_enhanced(
+                    clip,
+                    store=store if settings.vault_enabled else None,
+                    vault_key=vault_key,
+                    settings=settings,
+                    source_app=app_name,
+                    dest_app=app_name,
+                ))
+            else:
+                from cognitiveio.runtime.clipboard_shield import scan_text_for_secrets
+                result = scan_text_for_secrets(clip)
+
+            if result.contains_secrets:
+                console.print(
+                    f"[bold red][SHIELD][/bold red] Found {result.match_count} secret(s) in clipboard!"
+                )
+                if result.vault_token_count > 0:
+                    console.print(f"  Vault tokens created: {result.vault_token_count}")
+                if result.fm_detected:
+                    console.print("  [FM] FM detected additional secret(s)")
+                console.print(f"Redacted preview: {result.redacted_text[:200]}...")
+                store.log_privacy_event(
+                    kind="redaction",
+                    reason="clipboard_paste_redacted",
+                    app_name=app_name,
+                    profile="",
+                    event_type="clipboard_shield",
+                    meta={
+                        "match_count": result.match_count,
+                        "vault_token_count": result.vault_token_count,
+                        "fm_detected": result.fm_detected,
+                    },
+                )
+            else:
+                console.print("Clipboard is clean — no secrets detected.")
+            continue
+        if token == "/backfill":
+            import subprocess
+
+            try:
+                clip = subprocess.run(
+                    ["pbpaste"], capture_output=True, text=True, timeout=2
+                ).stdout
+            except Exception:
+                clip = ""
+            if not clip:
+                console.print("Clipboard is empty.")
+                continue
+
+            from cognitiveio.runtime.backfill import find_vault_tokens, resolve_tokens
+            from cognitiveio.security.vault_crypto import derive_vault_key
+
+            tokens = find_vault_tokens(clip)
+            if not tokens:
+                console.print("No vault tokens found in clipboard.")
+                continue
+
+            vault_key = derive_vault_key()
+            policy = getattr(runtime, 'policy', None)
+            bf_result = resolve_tokens(
+                clip,
+                store=store,
+                vault_key=vault_key,
+                settings=settings,
+                policy=policy,
+                dest_app=app_name,
+            )
+            console.print(f"[bold green][BACKFILL][/bold green] {bf_result.tokens_resolved}/{bf_result.tokens_found} tokens resolved. Policy: {bf_result.policy_gate}")
+            if bf_result.tokens_expired > 0:
+                console.print(f"  Expired: {bf_result.tokens_expired}")
+            if bf_result.tokens_denied > 0:
+                console.print(f"  Denied: {bf_result.tokens_denied}")
+            if bf_result.tokens_resolved > 0:
+                console.print(f"Resolved preview: {bf_result.resolved_text[:200]}...")
             continue
 
         out = asyncio.run(
@@ -410,6 +505,7 @@ def schema_check():
             "secret_alias_registry",
             "phrase_patterns",
             "concept_lexicon",
+            "redaction_vault",
         }
         missing = sorted(required - existing)
         if missing:
@@ -719,6 +815,53 @@ def retention_prune(
         else:
             pruned = store.prune_by_retention(retention_days)
             console.print(f"Pruned {pruned} rows older than {retention_days} days.")
+    finally:
+        store.close()
+
+
+@app.command("vault-status")
+def vault_status():
+    """Show redaction vault status: entry count, oldest entry, and retention policy."""
+    settings, policy = settings_from_env_with_policy()
+    store = _build_store(settings)
+    try:
+        count = store.vault_count()
+        table = Table(title="Redaction Vault Status")
+        table.add_column("Setting")
+        table.add_column("Value")
+
+        table.add_row("Vault Enabled", str(settings.vault_enabled))
+        table.add_row("Backfill Enabled", str(settings.vault_backfill_enabled))
+        table.add_row("Retention Hours", str(settings.vault_retention_hours))
+        table.add_row("Active Entries", str(count))
+        table.add_row("Backfill Hotkey", settings.backfill_hotkey)
+
+        if policy.is_corporate:
+            table.add_row("Corporate Backfill Policy", str(policy.backfill.enabled))
+            if policy.backfill.allowed_apps:
+                table.add_row("Allowed Apps", ", ".join(sorted(policy.backfill.allowed_apps)))
+            table.add_row("Requires Approval", str(policy.backfill.requires_approval))
+
+        console.print(table)
+    finally:
+        store.close()
+
+
+@app.command("vault-prune")
+def vault_prune(
+    all_entries: bool = typer.Option(False, "--all", help="Delete all vault entries, not just expired."),
+):
+    """Prune expired vault entries (or all entries with --all)."""
+    store, _settings = _get_store()
+    try:
+        if all_entries:
+            count = store.vault_clear()
+            console.print(f"Cleared all {count} vault entries.")
+        else:
+            count = store.vault_prune_expired()
+            console.print(f"Pruned {count} expired vault entries.")
+        remaining = store.vault_count()
+        console.print(f"Remaining active entries: {remaining}")
     finally:
         store.close()
 
