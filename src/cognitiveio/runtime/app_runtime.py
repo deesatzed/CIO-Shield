@@ -553,7 +553,7 @@ class AppRuntime:
         )
         return self._result(
             "suggest",
-            f"Ghost suggestion: {event.token} -> {decision.replacement} [Tab accept | Esc dismiss]",
+            f"Ghost suggestion: {event.token} -> {decision.replacement} [/accept | /dismiss]",
         )
 
     async def process_event(self, event: RuntimeEvent) -> RuntimeResult:

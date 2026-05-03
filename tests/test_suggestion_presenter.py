@@ -28,7 +28,7 @@ def test_console_presenter_show(capsys):
     captured = capsys.readouterr()
     assert "teh" in captured.out
     assert "the" in captured.out
-    assert "Tab accept" in captured.out
+    assert "/accept" in captured.out
 
 
 def test_console_presenter_hide_no_raise():

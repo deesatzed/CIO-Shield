@@ -147,7 +147,7 @@ class ConsoleSuggestionPresenter(SuggestionPresenter):
         self._last_state: str = ""
 
     def show(self, token: str, replacement: str) -> None:
-        print(f"Ghost suggestion: {token} -> {replacement} [Tab accept | Esc dismiss]")
+        print(f"Ghost suggestion: {token} -> {replacement} [/accept | /dismiss]")
 
     def hide(self) -> None:
         return
